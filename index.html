@@ -797,20 +797,32 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
         <div id="pd-patches"></div>
       </div>
 
-      <!-- Tab strip: History | Recipe -->
-      <div style="display:flex; border-bottom:1px solid var(--c-border); margin-bottom:12px; gap:0;">
-        <button id="pd-tab-history" class="pd-tab pd-tab-active"
+      <!-- Tab strip: History | Recipe | Dependencies | Licenses -->
+      <div style="display:flex; border-bottom:1px solid var(--c-border); margin-bottom:12px; gap:0; flex-wrap:wrap;">
+        <button id="pd-tab-history"
                 onclick="switchDetailTab('history')"
-                style="background:none;border:none;padding:8px 16px;cursor:pointer;
+                style="background:none;border:none;padding:8px 14px;cursor:pointer;
                        font-size:13px;font-weight:600;color:var(--c-info);
                        border-bottom:2px solid var(--c-info);">
           Build history
         </button>
-        <button id="pd-tab-recipe" class="pd-tab"
+        <button id="pd-tab-recipe"
                 onclick="switchDetailTab('recipe')"
-                style="background:none;border:none;padding:8px 16px;cursor:pointer;
+                style="background:none;border:none;padding:8px 14px;cursor:pointer;
                        font-size:13px;color:var(--c-muted);border-bottom:2px solid transparent;">
           Recipe script
+        </button>
+        <button id="pd-tab-deps"
+                onclick="switchDetailTab('deps')"
+                style="background:none;border:none;padding:8px 14px;cursor:pointer;
+                       font-size:13px;color:var(--c-muted);border-bottom:2px solid transparent;">
+          Dependencies
+        </button>
+        <button id="pd-tab-licenses"
+                onclick="switchDetailTab('licenses')"
+                style="background:none;border:none;padding:8px 14px;cursor:pointer;
+                       font-size:13px;color:var(--c-muted);border-bottom:2px solid transparent;">
+          Licenses
         </button>
       </div>
 
@@ -837,6 +849,36 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
                     font-size:12px;font-family:var(--font-mono);overflow:auto;
                     max-height:420px;white-space:pre;border:1px solid #30363d;margin:0;">
         </pre>
+      </div>
+
+      <!-- Dependencies panel -->
+      <div id="pd-panel-deps" style="display:none;">
+        <div id="pd-deps-stats" style="font-size:12px; color:var(--c-muted); margin-bottom:10px;"></div>
+
+        <!-- ASCII tree -->
+        <div style="margin-bottom:16px;">
+          <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
+                      letter-spacing:.6px; margin-bottom:6px;">Dependency tree</div>
+          <pre id="pd-deps-tree"
+               style="background:#f6f8fa; border:1px solid var(--c-border); border-radius:var(--radius);
+                      padding:12px; font-size:12px; font-family:var(--font-mono); overflow:auto;
+                      max-height:260px; white-space:pre; margin:0; line-height:1.6;"></pre>
+        </div>
+
+        <!-- SVG graph -->
+        <div>
+          <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
+                      letter-spacing:.6px; margin-bottom:6px;">Dependency graph</div>
+          <div id="pd-deps-graph"
+               style="overflow-x:auto; border:1px solid var(--c-border); border-radius:var(--radius);
+                      background:#fafbfc; padding:8px; min-height:60px;"></div>
+        </div>
+      </div>
+
+      <!-- Licenses panel -->
+      <div id="pd-panel-licenses" style="display:none;">
+        <div id="pd-licenses-summary" style="margin-bottom:12px;"></div>
+        <div id="pd-licenses-table"></div>
       </div>
 
     </div>
@@ -997,6 +1039,7 @@ const State = {
   providers:       [],     // all providers from bitsorg/bits-providers registry.json
   activeProviders: [],     // currently selected [{owner, repo, branch, name}]
   schedules:       {},     // filename → { cron, description, enabled, entries, _sha }
+  _packagesLoaded: false,  // true after first successful load; cleared when providers change
   buildPollTimer:  null,
   logPollTimer:    null,
   currentRunId:    null,
@@ -1205,7 +1248,8 @@ function toggleProvider(ghOwner, ghRepo, branch, name, checked) {
   State.activeProviders = deduplicateProviders(State.activeProviders);
   sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
   renderProviderSummary();
-  // Reload the package list immediately so the change is reflected.
+  // Invalidate cache and reload the package list immediately.
+  State._packagesLoaded = false;
   loadPackages();
 }
 
@@ -1312,7 +1356,7 @@ function nav(tab) {
   el('tab-' + tab).classList.add('active');
   el('nav-' + tab).classList.add('active');
   if (tab === 'dashboard') loadDashboard();
-  if (tab === 'packages')  loadPackages();
+  if (tab === 'packages')  { if (!State._packagesLoaded) loadPackages(); else filterPackages(); }
   if (tab === 'builds')    { loadBuilds(); startBuildPoll(); }
   if (tab === 'cvmfs')     loadCvmfsStatus();
   if (tab === 'schedules') loadSchedules();
@@ -1336,7 +1380,10 @@ async function loadDashboard() {
     el('stat-pkgs').textContent   = State.packages.length || '—';
     updateRunningBadge(active);
     renderRunsTable(runList.slice(0, 10));
-  } catch(e) { showFetchError('dash-sub', e); }
+  } catch(e) {
+    if (!/404|Not Found/i.test(e.message)) showFetchError('dash-sub', e);
+    // 404 = workflow not yet created; silently show empty dashboard
+  }
 }
 
 function renderRunsTable(runs) {
@@ -1359,10 +1406,12 @@ function renderRunsTable(runs) {
 
 // ── Packages ───────────────────────────────────────────────────────────────
 async function loadPackages() {
+  State._packagesLoaded = false;
   el('pkg-tbody').innerHTML = '<tr><td colspan="7" class="loading">Fetching package list…</td></tr>';
   try {
     const recipes = await getRecipeRepos();
     State.packages = recipes;
+    State._packagesLoaded = true;
     el('stat-pkgs').textContent = recipes.length;
     await loadCvmfsStatusData();
     filterPackages();
@@ -1627,15 +1676,19 @@ function showPackageDetail(pkgName) {
 }
 
 function switchDetailTab(tab) {
-  const isHistory = tab === 'history';
-  el('pd-panel-history').style.display = isHistory ? 'block' : 'none';
-  el('pd-panel-recipe').style.display  = isHistory ? 'none'  : 'block';
-  const hBtn = el('pd-tab-history');
-  const rBtn = el('pd-tab-recipe');
-  const activeStyle = `color:var(--c-info);border-bottom:2px solid var(--c-info);font-weight:600;`;
-  const idleStyle   = `color:var(--c-muted);border-bottom:2px solid transparent;font-weight:400;`;
-  hBtn.style.cssText += isHistory ? activeStyle : idleStyle;
-  rBtn.style.cssText += isHistory ? idleStyle   : activeStyle;
+  ['history', 'recipe', 'deps', 'licenses'].forEach(t => {
+    const panel = el(`pd-panel-${t}`);
+    const btn   = el(`pd-tab-${t}`);
+    const on    = t === tab;
+    if (panel) panel.style.display    = on ? 'block' : 'none';
+    if (btn) {
+      btn.style.color        = on ? 'var(--c-info)'            : 'var(--c-muted)';
+      btn.style.borderBottom = on ? '2px solid var(--c-info)'  : '2px solid transparent';
+      btn.style.fontWeight   = on ? '600'                      : '400';
+    }
+  });
+  if (tab === 'deps')     renderDepsPanel();
+  if (tab === 'licenses') renderLicensesPanel();
 }
 
 function buildFromDetail() {
@@ -1699,7 +1752,10 @@ async function loadPackageBuildHistory(pkgName) {
         </tbody>
       </table>`;
   } catch(e) {
-    el('pd-history').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    if (/404|Not Found/i.test(e.message))
+      el('pd-history').innerHTML = '<div class="empty" style="padding:20px;"><p>Workflow not found — no build history available.</p></div>';
+    else
+      el('pd-history').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
   }
 }
 
@@ -1745,7 +1801,12 @@ async function loadBuilds() {
     updateRunningBadge(active);
     el('build-last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
     renderBuildsList(runs);
-  } catch(e) { el('builds-list').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`; }
+  } catch(e) {
+    if (/404|Not Found/i.test(e.message))
+      el('builds-list').innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><p>Workflow not found — check <code>publish_workflow</code> in <code>ui-config.yaml</code>.</p></div>';
+    else
+      el('builds-list').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+  }
 }
 
 function renderBuildsList(runs) {
@@ -1995,9 +2056,230 @@ function addManualProvider() {
     State.activeProviders.push(entry);
     sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
     renderProviderSummary();
+    State._packagesLoaded = false;
+    loadPackages();
   }
   el('manual-owner').value = '';
   el('manual-repo').value  = '';
+}
+
+// ── Dependency tree ────────────────────────────────────────────────────────
+
+// Recursively build a tree node for pkgName from the in-memory package list.
+// visited  — Set of names already on the current path (cycle detection)
+// maxDepth — safety limit to prevent unbounded recursion
+function buildDepTree(pkgName, visited = new Set(), maxDepth = 10) {
+  if (visited.has(pkgName))
+    return { name: pkgName, version: '', license: '', children: [], circular: true };
+  const pkg = State.packages.find(p => p.name === pkgName);
+  if (!pkg)
+    return { name: pkgName, version: '?',  license: '', children: [], missing: true };
+  if (maxDepth <= 0)
+    return { name: pkgName, version: pkg.version, license: '', children: [], truncated: true };
+  const next     = new Set([...visited, pkgName]);
+  const license  = pkg.fields?.license || pkg.fields?.License || pkg.fields?.licence || '';
+  return {
+    name:     pkg.name,
+    version:  pkg.version,
+    license,
+    children: (pkg.requires || []).map(dep => buildDepTree(dep, next, maxDepth - 1)),
+    circular: false,
+    missing:  false,
+  };
+}
+
+// Collect every unique node in the tree (pre-order, skipping circular back-refs).
+function flattenDeps(node, seen = new Set(), result = []) {
+  if (seen.has(node.name)) return result;
+  seen.add(node.name);
+  result.push(node);
+  if (!node.circular) node.children.forEach(c => flattenDeps(c, seen, result));
+  return result;
+}
+
+// Render the tree as a plain-text ASCII art string (for the <pre> view).
+function depTreeText(node, prefix = '', isLast = true, isRoot = true) {
+  const connector  = isRoot ? '' : (isLast ? '└── ' : '├── ');
+  const childPfx   = isRoot ? '' : (isLast ? '    ' : '│   ');
+  const ver        = node.version && node.version !== '—' ? `  ${node.version}` : '';
+  const annotation = node.circular  ? '  [↩ circular dependency]'    :
+                     node.missing   ? '  [? not in active providers]' :
+                     node.truncated ? '  […depth limit reached]'      : '';
+  const line     = `${prefix}${connector}${node.name}${ver}${annotation}\n`;
+  const children = (node.circular || node.truncated)
+    ? ''
+    : node.children.map((c, i) =>
+        depTreeText(c, prefix + childPfx, i === node.children.length - 1, false)
+      ).join('');
+  return line + children;
+}
+
+// Render the tree as an SVG left-to-right hierarchical graph.
+function depTreeSvg(root) {
+  const NW = 134, NH = 32, PX = 170, PY = 44;   // node box size, grid pitch
+
+  // Count leaf nodes (nodes with no children, or circular/truncated).
+  function leaves(n) {
+    if (n.circular || n.truncated || !n.children.length) return 1;
+    return n.children.reduce((s, c) => s + leaves(c), 0);
+  }
+
+  // Assign _x (depth) and _cy (centred y in leaf units) to every node.
+  function layout(n, x, yOff) {
+    n._x  = x;
+    n._cy = yOff + leaves(n) / 2;
+    if (!n.circular && !n.truncated) {
+      let cur = yOff;
+      n.children.forEach(c => { layout(c, x + 1, cur); cur += leaves(c); });
+    }
+  }
+  layout(root, 0, 0);
+
+  // Find bounding box.
+  function bounds(n, mx = 0, my = 0) {
+    mx = Math.max(mx, n._x); my = Math.max(my, n._cy);
+    if (!n.circular && !n.truncated) n.children.forEach(c => { [mx, my] = bounds(c, mx, my); });
+    return [mx, my];
+  }
+  const [maxX, maxCY] = bounds(root);
+  const W = (maxX + 1) * PX + NW + 16;
+  const H = Math.ceil(maxCY + 0.5) * PY + 16;
+
+  // Collect nodes and edges.
+  const nodes = [], edges = [];
+  function collect(n) {
+    const px = n._x  * PX + 8;
+    const py = (n._cy - 0.5) * PY + 8;
+    nodes.push({ ...n, px, py });
+    if (!n.circular && !n.truncated) {
+      n.children.forEach(c => {
+        const cy = (c._cy - 0.5) * PY + 8;
+        // Cubic bezier from right-centre of parent to left-centre of child
+        edges.push({
+          x1: px + NW, y1: py + NH / 2,
+          x2: c._x * PX + 8, y2: cy + NH / 2,
+        });
+        collect(c);
+      });
+    }
+  }
+  collect(root);
+
+  const nodeFill   = n => n.circular  ? '#ffd7d7' : n.missing   ? '#f0f0f0' : n.truncated ? '#fff3cd' : '#ddf4ff';
+  const nodeStroke = n => n.circular  ? '#f5a5a5' : n.missing   ? '#ccc'    : n.truncated ? '#fcd34d' : '#a3c8f5';
+  const textColor  = n => n.missing   ? '#888'    : '#24292e';
+
+  const edgeSvg = edges.map(({ x1, y1, x2, y2 }) => {
+    const mx = (x1 + x2) / 2;
+    return `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"
+              fill="none" stroke="#c8d0d8" stroke-width="1.5"/>`;
+  }).join('');
+
+  const nodeSvg = nodes.map(n => {
+    const label = n.name.length > 16 ? n.name.slice(0, 15) + '…' : n.name;
+    const ver   = (n.version && n.version !== '—') ? n.version.slice(0, 18) : '';
+    const icon  = n.circular ? ' ↩' : n.missing ? ' ?' : n.truncated ? ' …' : '';
+    return `<g>
+      <rect x="${n.px}" y="${n.py}" width="${NW}" height="${NH}" rx="5"
+            fill="${nodeFill(n)}" stroke="${nodeStroke(n)}" stroke-width="1.2"/>
+      <text x="${n.px + 8}" y="${n.py + 12}" font-family="monospace" font-size="10.5"
+            fill="${textColor(n)}" font-weight="${n._x === 0 ? 700 : 400}">
+        ${esc(label)}${esc(icon)}
+      </text>
+      <text x="${n.px + 8}" y="${n.py + 25}" font-family="monospace" font-size="9"
+            fill="#6a737d">${esc(ver)}</text>
+    </g>`;
+  }).join('');
+
+  return `<svg width="${W}" height="${H}" style="display:block; min-width:${W}px;">
+    ${edgeSvg}${nodeSvg}
+  </svg>`;
+}
+
+function renderDepsPanel() {
+  const pkg = State._detailPkg;
+  if (!pkg) return;
+
+  if (!pkg.requires || !pkg.requires.length) {
+    el('pd-deps-stats').textContent = '';
+    el('pd-deps-tree').textContent  = `${pkg.name} has no declared dependencies.`;
+    el('pd-deps-graph').innerHTML   = '<div class="empty" style="padding:16px;"><p>No dependencies.</p></div>';
+    return;
+  }
+
+  const root    = buildDepTree(pkg.name);
+  const allDeps = flattenDeps(root).slice(1);     // exclude root itself
+  const nMiss   = allDeps.filter(d => d.missing).length;
+  const nCirc   = allDeps.filter(d => d.circular).length;
+
+  el('pd-deps-stats').innerHTML =
+    `${allDeps.length} unique dependenc${allDeps.length === 1 ? 'y' : 'ies'}` +
+    (nMiss  ? ` · <span style="color:var(--c-muted);">${nMiss} not in active providers</span>` : '') +
+    (nCirc  ? ` · <span style="color:var(--c-danger);">${nCirc} circular</span>` : '');
+
+  el('pd-deps-tree').textContent = depTreeText(root).trimEnd();
+  el('pd-deps-graph').innerHTML  = depTreeSvg(root);
+}
+
+function renderLicensesPanel() {
+  const pkg = State._detailPkg;
+  if (!pkg) return;
+
+  const root = buildDepTree(pkg.name);
+  const all  = flattenDeps(root);
+
+  const rows = all.map(node => {
+    const p       = State.packages.find(p2 => p2.name === node.name);
+    const license = p
+      ? (p.fields?.license || p.fields?.License || p.fields?.licence || '—')
+      : '—';
+    return {
+      name:    node.name,
+      version: node.version || '—',
+      license,
+      isRoot:  node.name === pkg.name,
+      missing: node.missing,
+      circular: node.circular,
+    };
+  });
+
+  const knownLicenses = [...new Set(rows.map(r => r.license).filter(l => l !== '—'))];
+
+  const summaryHtml = knownLicenses.length
+    ? `<div class="alert alert-ok">
+         Licenses in use:&nbsp;
+         ${knownLicenses.map(l => `<strong>${esc(l)}</strong>`).join('&ensp;·&ensp;')}
+       </div>`
+    : `<div class="alert alert-warn">
+         No <code>license:</code> field found in any recipe YAML front matter.
+         Add <code>license: MIT</code> (or the appropriate SPDX identifier) to
+         each <code>.sh</code> recipe file to populate this view.
+       </div>`;
+
+  const tableHtml = `<table>
+    <thead><tr>
+      <th>Package</th><th>Version</th><th>License</th><th>Role</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r => `<tr>
+        <td style="font-family:var(--font-mono); font-size:12px;
+                   font-weight:${r.isRoot ? 700 : 400};">${esc(r.name)}</td>
+        <td class="mono" style="font-size:12px;">${esc(r.version)}</td>
+        <td style="font-family:var(--font-mono); font-size:12px;">
+          ${r.license !== '—'
+            ? `<span class="badge badge-success" style="font-weight:400;">${esc(r.license)}</span>`
+            : '<span class="text-muted">—</span>'}
+        </td>
+        <td>${r.isRoot    ? '<span class="badge badge-running">this package</span>'       :
+             r.circular  ? '<span class="badge badge-failure">circular</span>'           :
+             r.missing   ? '<span class="badge badge-skipped">not in providers</span>'   :
+                           '<span class="badge badge-pending">dependency</span>'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  el('pd-licenses-summary').innerHTML = summaryHtml;
+  el('pd-licenses-table').innerHTML   = tableHtml;
 }
 
 // ── Schedules ──────────────────────────────────────────────────────────────

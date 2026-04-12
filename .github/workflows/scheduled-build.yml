@@ -1,0 +1,188 @@
+# Scheduled build dispatcher for bits packages
+#
+# Reads every enabled JSON file under schedules/ and dispatches a
+# cvmfs-publish.yml run for each enabled entry.
+#
+# Schedule files live at   schedules/*.json   in this repository.
+# Each file has the shape:
+#
+#   {
+#     "cron":        "0 2 * * *",          # informational only
+#     "description": "Nightly LCG builds",
+#     "enabled":     true,
+#     "entries": [
+#       {
+#         "package":          "ROOT",
+#         "version":          "",           # blank = latest
+#         "platform":         "x86_64-el9",
+#         "cvmfs_target":     "/cvmfs/sft.cern.ch/lcg/releases/ROOT//x86_64-el9",
+#         "rebuild":          false,
+#         "no_deps":          false,
+#         "debug":            false,
+#         "jobs":             "0",
+#         "config_dir":       "",
+#         "architecture":     "",
+#         "extra_build_args": "",
+#         "enabled":          true
+#       }
+#     ]
+#   }
+#
+# The actual cron schedule is the trigger below; per-file cron fields are
+# stored for documentation purposes and displayed in the Schedules UI.
+#
+# Required permissions:
+#   GITHUB_TOKEN needs actions:write to dispatch cvmfs-publish.yml within
+#   the same repository.  This is granted by the permissions block below.
+
+name: Scheduled Builds
+
+on:
+  schedule:
+    # Daily at 02:00 UTC.  Adjust here or add extra cron entries as needed.
+    - cron: '0 2 * * *'
+
+  workflow_dispatch:
+    inputs:
+      schedule_file:
+        description: >
+          Specific schedule file to run (e.g. nightly.json).
+          Leave blank to process all enabled files.
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: >
+          Print the jobs that would be dispatched without actually triggering them.
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions:  write   # required to dispatch cvmfs-publish.yml in the same repo
+
+jobs:
+  # ------------------------------------------------------------------
+  dispatch:
+  # ------------------------------------------------------------------
+    name: Dispatch scheduled builds
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (to read schedule files)
+        uses: actions/checkout@v4
+
+      - name: Dispatch builds from schedule files
+        env:
+          GH_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
+          SCHEDULE_FILE: ${{ inputs.schedule_file }}
+          DRY_RUN:       ${{ inputs.dry_run || 'false' }}
+          REPO:          ${{ github.repository }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, glob, subprocess, sys
+
+          repo      = os.environ["REPO"]
+          dry_run   = os.environ.get("DRY_RUN", "").lower() in ("true", "1")
+          only_file = os.environ.get("SCHEDULE_FILE", "").strip()
+
+          # Collect schedule files
+          if only_file:
+              candidates = [f"schedules/{only_file}"]
+              files = [f for f in candidates if os.path.isfile(f)]
+              if not files:
+                  print(f"Schedule file not found: {only_file}")
+                  sys.exit(1)
+          else:
+              files = sorted(glob.glob("schedules/*.json"))
+
+          if not files:
+              print("No schedule files found in schedules/ — nothing to do.")
+              sys.exit(0)
+
+          print(f"Processing {len(files)} schedule file(s)  [dry_run={dry_run}]\n")
+          total_dispatched = 0
+          total_skipped    = 0
+
+          for fpath in files:
+              with open(fpath) as f:
+                  try:
+                      sched = json.load(f)
+                  except json.JSONDecodeError as e:
+                      print(f"[ERROR] {fpath}: invalid JSON — {e}")
+                      continue
+
+              if not sched.get("enabled", True):
+                  print(f"[SKIP ] {fpath}: disabled at file level")
+                  total_skipped += 1
+                  continue
+
+              desc    = sched.get("description", fpath)
+              entries = sched.get("entries", [])
+              print(f"── {fpath}: {desc}")
+              print(f"   {len(entries)} entries")
+
+              for entry in entries:
+                  pkg    = entry.get("package",      "").strip()
+                  ver    = entry.get("version",       "").strip()
+                  plat   = entry.get("platform",      "x86_64-el9")
+                  target = entry.get("cvmfs_target",  "").strip()
+                  label  = f"{pkg} {ver or '(latest)'} → {plat}"
+
+                  if not entry.get("enabled", True):
+                      print(f"   [SKIP ] {label}: entry disabled")
+                      total_skipped += 1
+                      continue
+                  if not pkg:
+                      print(f"   [SKIP ] entry has no package name")
+                      total_skipped += 1
+                      continue
+                  if not target:
+                      print(f"   [SKIP ] {label}: no cvmfs_target configured")
+                      total_skipped += 1
+                      continue
+
+                  dispatch_body = json.dumps({
+                      "ref": "main",
+                      "inputs": {
+                          "package":          pkg,
+                          "version":          ver,
+                          "platform":         plat,
+                          "cvmfs_target":     target,
+                          "rebuild":          str(entry.get("rebuild",          False)).lower(),
+                          "no_deps":          str(entry.get("no_deps",          False)).lower(),
+                          "debug":            str(entry.get("debug",            False)).lower(),
+                          "jobs":             str(entry.get("jobs",             "0")),
+                          "config_dir":       entry.get("config_dir",           ""),
+                          "architecture":     entry.get("architecture",         ""),
+                          "extra_build_args": entry.get("extra_build_args",     ""),
+                      }
+                  })
+
+                  tag = "[DRY  ]" if dry_run else "[DISPATCH]"
+                  print(f"   {tag} {label}")
+
+                  if not dry_run:
+                      result = subprocess.run(
+                          [
+                              "gh", "api",
+                              f"repos/{repo}/actions/workflows/cvmfs-publish.yml/dispatches",
+                              "--method", "POST",
+                              "--input",  "-",
+                          ],
+                          input=dispatch_body,
+                          capture_output=True,
+                          text=True,
+                      )
+                      if result.returncode != 0:
+                          err = (result.stderr or result.stdout).strip()
+                          print(f"            ✗ {err}")
+                      else:
+                          total_dispatched += 1
+                          print(f"            ✓ dispatched (run will appear in Builds tab)")
+
+              print()
+
+          print(f"Summary: {total_dispatched} dispatched, {total_skipped} skipped.")
+          PYEOF
