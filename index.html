@@ -333,6 +333,10 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
       <i class="icon">🗄</i> CVMFS Status
     </div>
 
+    <div class="nav-item" onclick="nav('schedules')" id="nav-schedules">
+      <i class="icon">📅</i> Schedules
+    </div>
+
     <div class="nav-section">Configuration</div>
     <div class="nav-item" onclick="nav('settings')" id="nav-settings">
       <i class="icon">⚙️</i> Settings
@@ -469,6 +473,23 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- Schedules ─────────────────────────────────────────────────────────── -->
+    <div class="tab-content" id="tab-schedules">
+      <div class="page-title">Scheduled Builds</div>
+      <div class="page-sub">
+        Periodical build schedules — each file defines a cron expression and a list of
+        packages built automatically by the <code>scheduled-build.yml</code> workflow.
+        Files are committed to <code>schedules/</code> in this repository.
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:16px; align-items:center;">
+        <button class="btn btn-primary" onclick="showNewScheduleModal()">+ New schedule file</button>
+        <button class="btn btn-outline btn-sm" onclick="loadSchedules()">↻ Refresh</button>
+      </div>
+
+      <div id="schedules-list"><div class="loading">Loading…</div></div>
     </div>
 
     <!-- Settings ──────────────────────────────────────────────────────── -->
@@ -743,6 +764,10 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
         <h3 id="pd-title" style="margin-bottom:2px;">Package</h3>
         <div id="pd-subtitle" style="font-size:12px; color:var(--c-muted); font-weight:400;"></div>
       </div>
+      <button class="btn btn-outline btn-sm"
+              onclick="scheduleFromDetail()" style="margin-right:4px;">
+        📅 Schedule
+      </button>
       <button class="btn btn-primary btn-sm" id="pd-build-btn"
               onclick="buildFromDetail()" style="margin-right:8px;">
         🔨 Build &amp; Publish
@@ -772,14 +797,46 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
         <div id="pd-patches"></div>
       </div>
 
-      <!-- Build history -->
-      <div>
+      <!-- Tab strip: History | Recipe -->
+      <div style="display:flex; border-bottom:1px solid var(--c-border); margin-bottom:12px; gap:0;">
+        <button id="pd-tab-history" class="pd-tab pd-tab-active"
+                onclick="switchDetailTab('history')"
+                style="background:none;border:none;padding:8px 16px;cursor:pointer;
+                       font-size:13px;font-weight:600;color:var(--c-info);
+                       border-bottom:2px solid var(--c-info);">
+          Build history
+        </button>
+        <button id="pd-tab-recipe" class="pd-tab"
+                onclick="switchDetailTab('recipe')"
+                style="background:none;border:none;padding:8px 16px;cursor:pointer;
+                       font-size:13px;color:var(--c-muted);border-bottom:2px solid transparent;">
+          Recipe script
+        </button>
+      </div>
+
+      <!-- History panel -->
+      <div id="pd-panel-history">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-          <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
-                      letter-spacing:.6px; flex:1;">Build history</div>
+          <div style="flex:1;"></div>
           <button class="btn btn-outline btn-sm" onclick="refreshPackageHistory()">↻ Refresh</button>
         </div>
         <div id="pd-history"><div class="loading">Loading…</div></div>
+      </div>
+
+      <!-- Recipe script panel -->
+      <div id="pd-panel-recipe" style="display:none;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <span style="font-size:12px; color:var(--c-muted);" id="pd-recipe-path"></span>
+          <div style="flex:1;"></div>
+          <a id="pd-recipe-gh-link" href="#" target="_blank" style="font-size:12px;">
+            View on GitHub ↗
+          </a>
+        </div>
+        <pre id="pd-recipe-body"
+             style="background:#0d1117;color:#c9d1d9;padding:16px;border-radius:var(--radius);
+                    font-size:12px;font-family:var(--font-mono);overflow:auto;
+                    max-height:420px;white-space:pre;border:1px solid #30363d;margin:0;">
+        </pre>
       </div>
 
     </div>
@@ -808,6 +865,124 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
   </div>
 </div>
 
+<!-- ── New schedule file modal ───────────────────────────────────────────── -->
+<div class="modal-bg hidden" id="new-schedule-modal">
+  <div class="modal" style="width:480px;">
+    <div class="modal-header">
+      <h3>New schedule file</h3>
+      <button class="close-btn" onclick="hideModal('new-schedule-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>File name</label>
+        <input type="text" id="ns-name" placeholder="nightly.json"
+               onkeydown="if(event.key==='Enter') createScheduleFile()">
+        <div class="form-hint">Stored as <code>schedules/{name}.json</code> in this repository.</div>
+      </div>
+      <div class="form-row">
+        <label>Cron expression <span style="font-weight:400;color:var(--c-muted);">(UTC, informational)</span></label>
+        <input type="text" id="ns-cron" placeholder="0 2 * * *" value="0 2 * * *">
+        <div class="form-hint">
+          Standard 5-field cron —
+          <a href="https://crontab.guru/" target="_blank">crontab.guru ↗</a>.
+          The actual trigger schedule is set in <code>scheduled-build.yml</code>.
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <input type="text" id="ns-desc" placeholder="Nightly builds for LCG stack">
+      </div>
+      <div id="ns-error" class="alert alert-error" style="display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="hideModal('new-schedule-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createScheduleFile()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Schedule entry modal ───────────────────────────────────────────────── -->
+<div class="modal-bg hidden" id="sched-entry-modal" style="align-items:flex-start; padding-top:32px;">
+  <div class="modal" style="width:560px;">
+    <div class="modal-header">
+      <h3 id="se-modal-title">Add schedule entry</h3>
+      <button class="close-btn" onclick="hideModal('sched-entry-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-row" id="se-file-row">
+        <label>Add to schedule file</label>
+        <select id="se-target-file"></select>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+        <div class="form-row">
+          <label>Package</label>
+          <input type="text" id="se-package" placeholder="ROOT" oninput="updateSeTarget()">
+        </div>
+        <div class="form-row">
+          <label>Version <span style="font-weight:400;color:var(--c-muted);">(blank = latest)</span></label>
+          <input type="text" id="se-version" placeholder="6.30.08" oninput="updateSeTarget()">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Platform</label>
+        <select id="se-platform" onchange="updateSeTarget()"></select>
+      </div>
+
+      <div class="form-row">
+        <label>CVMFS target path</label>
+        <input type="text" id="se-cvmfs-target">
+        <div class="form-hint">Final absolute install path on CVMFS.</div>
+      </div>
+
+      <div style="display:flex; gap:16px; margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="se-rebuild" style="width:auto;"> Force rebuild
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="se-no-deps" style="width:auto;"> Skip dependencies
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="se-debug" style="width:auto;"> Debug output
+        </label>
+      </div>
+
+      <details>
+        <summary style="cursor:pointer; font-size:13px; color:var(--c-info);
+                        margin-bottom:10px; user-select:none;">
+          Advanced options
+        </summary>
+        <div style="border:1px solid var(--c-border); border-radius:var(--radius);
+                    padding:14px; margin-top:4px; background:#fafbfc;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+            <div class="form-row">
+              <label>Parallel jobs <code>-j</code></label>
+              <input type="number" id="se-jobs" value="0" min="0" max="256">
+              <div class="form-hint">0 = auto-detect from <code>nproc</code>.</div>
+            </div>
+            <div class="form-row">
+              <label>Config directory</label>
+              <input type="text" id="se-config-dir" placeholder="auto (from provider)">
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom:0;">
+            <label>Extra build arguments</label>
+            <input type="text" id="se-extra-args" placeholder="e.g. --flag value">
+          </div>
+        </div>
+      </details>
+
+      <div id="se-error" class="alert alert-error" style="display:none; margin-top:12px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="hideModal('sched-entry-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveScheduleEntry()">Add to schedule</button>
+    </div>
+  </div>
+</div>
+
 <script>
 'use strict';
 
@@ -821,6 +996,7 @@ const State = {
   cvmfsStatus:     [],     // from cvmfs-status.json
   providers:       [],     // all providers from bitsorg/bits-providers registry.json
   activeProviders: [],     // currently selected [{owner, repo, branch, name}]
+  schedules:       {},     // filename → { cron, description, enabled, entries, _sha }
   buildPollTimer:  null,
   logPollTimer:    null,
   currentRunId:    null,
@@ -922,7 +1098,18 @@ function initActiveProviders() {
   // Session selection overrides config (persists until tab is closed).
   const saved = sessionStorage.getItem('bits_active_providers');
   if (saved) {
-    try { State.activeProviders = JSON.parse(saved); return; } catch {}
+    try {
+      const parsed = JSON.parse(saved);
+      // Re-resolve owner slugs against the now-loaded registry so that stale
+      // display-name owners (e.g. "CERN/EP-SFT") are replaced with the real
+      // GitHub slug, then deduplicate by owner+repo.
+      State.activeProviders = deduplicateProviders(
+        parsed.map(entry => normaliseProviderEntry(entry))
+      );
+      // Persist the normalised version so stale entries don't accumulate.
+      sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
+      return;
+    } catch {}
   }
   // Seed from recipe_repos in ui-config.yaml.
   const repos = Array.isArray((State.config || {}).recipe_repos)
@@ -930,6 +1117,29 @@ function initActiveProviders() {
   State.activeProviders = repos.map(r =>
     typeof r === 'object' ? r : { owner: State.owner, repo: r, branch: 'main' }
   );
+}
+
+// Cross-reference a stored entry against the loaded registry to get the
+// canonical GitHub owner slug.  Falls back to the stored owner if no match.
+function normaliseProviderEntry(entry) {
+  const match = State.providers.find(
+    p => (p._ghRepo || p.repo) === entry.repo &&
+         ((p._ghOwner || p.owner) === entry.owner || p.owner === entry.owner)
+  );
+  if (match) {
+    return { ...entry, owner: match._ghOwner || match.owner, repo: match._ghRepo || match.repo,
+             name: entry.name || match.name };
+  }
+  return entry;
+}
+
+function deduplicateProviders(list) {
+  const seen = new Set();
+  return list.filter(p => {
+    const key = `${p.owner}/${p.repo}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
 }
 
 async function loadProviders() {
@@ -991,6 +1201,8 @@ function toggleProvider(ghOwner, ghRepo, branch, name, checked) {
       a => !(a.owner === ghOwner && a.repo === ghRepo)
     );
   }
+  // Always deduplicate before persisting to defend against any race.
+  State.activeProviders = deduplicateProviders(State.activeProviders);
   sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
   renderProviderSummary();
   // Reload the package list immediately so the change is reflected.
@@ -1103,14 +1315,16 @@ function nav(tab) {
   if (tab === 'packages')  loadPackages();
   if (tab === 'builds')    { loadBuilds(); startBuildPoll(); }
   if (tab === 'cvmfs')     loadCvmfsStatus();
+  if (tab === 'schedules') loadSchedules();
   if (tab === 'settings')  renderSettings();
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
 async function loadDashboard() {
   try {
+    const wf = encodeURIComponent((State.config || {}).publish_workflow || 'cvmfs-publish.yml');
     const [runs, cvmfs] = await Promise.all([
-      ghGet(`/repos/${State.owner}/${State.repo}/actions/runs?per_page=20`),
+      ghGet(`/repos/${State.owner}/${State.repo}/actions/workflows/${wf}/runs?per_page=20`),
       loadCvmfsStatusData(),
     ]);
     const runList = runs.workflow_runs || [];
@@ -1158,7 +1372,8 @@ async function loadPackages() {
 }
 
 async function getRecipeRepos() {
-  const repoList = State.activeProviders;
+  // Deduplicate defensively — guards against any duplicate that slipped through.
+  const repoList = deduplicateProviders(State.activeProviders);
   if (!repoList.length) {
     el('pkg-tbody').innerHTML = `<tr><td colspan="7"><div class="alert alert-warn" style="margin:0;">
       No recipe repositories selected.
@@ -1192,13 +1407,15 @@ async function fetchRecipe(owner, repo, path) {
   try {
     const data = await ghGet(`/repos/${owner}/${repo}/contents/${path}`);
     const text = atob(data.content.replace(/\n/g,''));
-    return parseRecipe(text, path);
+    return parseRecipe(text, path, { owner, repo });
   } catch { return null; }
 }
 
-function parseRecipe(text, path) {
-  const name = path.replace(/^.*\//, '').replace(/\.sh$/, '');
-  const yaml = text.split(/^---\s*$/m)[0] || '';
+function parseRecipe(text, path, src = {}) {
+  const name   = path.replace(/^.*\//, '').replace(/\.sh$/, '');
+  const parts  = text.split(/^---\s*$/m);
+  const yaml   = parts[0] || '';
+  const script = parts.slice(1).join('---\n').trim();  // everything after first ---
   const fields = parseSimpleYaml(yaml);
 
   // Collect all list-valued fields (patches, requires, etc.)
@@ -1222,10 +1439,12 @@ function parseRecipe(text, path) {
     label:       fields.label      || '',
     patches,
     requires,
-    fields,      // full parsed YAML for the detail view
+    fields,          // full parsed YAML for the detail view
     cvmfsStatus: 'pending',
-    _path: path,
-    _rawYaml: yaml,
+    _path:   path,
+    _owner:  src.owner || '',
+    _repo:   src.repo  || '',
+    _script: script,  // bash recipe body after the --- separator
   };
 }
 
@@ -1389,8 +1608,34 @@ function showPackageDetail(pkgName) {
     pSection.style.display = 'none';
   }
 
+  // Recipe script panel
+  const scriptBody = pkg._script || '# (recipe script not available)';
+  el('pd-recipe-body').textContent = scriptBody;
+  el('pd-recipe-path').textContent = pkg._path || '';
+  const ghLink = el('pd-recipe-gh-link');
+  if (pkg._owner && pkg._repo && pkg._path) {
+    ghLink.href = `https://github.com/${pkg._owner}/${pkg._repo}/blob/main/${pkg._path}`;
+    ghLink.style.display = 'inline';
+  } else {
+    ghLink.style.display = 'none';
+  }
+  // Always open on the history tab.
+  switchDetailTab('history');
+
   showModal('pkg-detail-modal');
   loadPackageBuildHistory(pkg.name);
+}
+
+function switchDetailTab(tab) {
+  const isHistory = tab === 'history';
+  el('pd-panel-history').style.display = isHistory ? 'block' : 'none';
+  el('pd-panel-recipe').style.display  = isHistory ? 'none'  : 'block';
+  const hBtn = el('pd-tab-history');
+  const rBtn = el('pd-tab-recipe');
+  const activeStyle = `color:var(--c-info);border-bottom:2px solid var(--c-info);font-weight:600;`;
+  const idleStyle   = `color:var(--c-muted);border-bottom:2px solid transparent;font-weight:400;`;
+  hBtn.style.cssText += isHistory ? activeStyle : idleStyle;
+  rBtn.style.cssText += isHistory ? idleStyle   : activeStyle;
 }
 
 function buildFromDetail() {
@@ -1490,7 +1735,8 @@ function reBuildFromHistory(pkgName, version, platform) {
 // ── Builds tab ─────────────────────────────────────────────────────────────
 async function loadBuilds() {
   const filter = el('build-filter').value;
-  const url = `/repos/${State.owner}/${State.repo}/actions/runs?per_page=30`
+  const wf     = encodeURIComponent((State.config || {}).publish_workflow || 'cvmfs-publish.yml');
+  const url = `/repos/${State.owner}/${State.repo}/actions/workflows/${wf}/runs?per_page=30`
     + (filter ? `&status=${filter}` : '');
   try {
     const data = await ghGet(url);
@@ -1754,6 +2000,346 @@ function addManualProvider() {
   el('manual-repo').value  = '';
 }
 
+// ── Schedules ──────────────────────────────────────────────────────────────
+
+// btoa only handles Latin-1; this wrapper encodes any Unicode string safely.
+function toBase64Unicode(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+async function loadSchedules() {
+  if (!State.owner || !State.repo) return;
+  el('schedules-list').innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    let files;
+    try {
+      files = await ghGet(`/repos/${State.owner}/${State.repo}/contents/schedules`);
+    } catch(e) {
+      if (/404|Not Found/i.test(e.message)) {
+        el('schedules-list').innerHTML = `<div class="alert alert-info">
+          No <code>schedules/</code> folder found yet — click
+          <strong>+ New schedule file</strong> to create the first one.
+        </div>`;
+        return;
+      }
+      throw e;
+    }
+    const jsonFiles = (Array.isArray(files) ? files : []).filter(f => f.name.endsWith('.json'));
+    if (!jsonFiles.length) {
+      el('schedules-list').innerHTML =
+        '<div class="alert alert-info">No schedule files yet. Click <strong>+ New schedule file</strong> to create one.</div>';
+      return;
+    }
+    const loaded = await Promise.all(jsonFiles.map(f =>
+      ghGet(`/repos/${State.owner}/${State.repo}/contents/schedules/${f.name}`)
+        .then(data => {
+          const parsed = JSON.parse(atob(data.content.replace(/\n/g, '')));
+          parsed._sha = data.sha;
+          State.schedules[f.name] = parsed;
+          return { name: f.name, data: parsed };
+        })
+        .catch(e => ({ name: f.name, error: e.message }))
+    ));
+    renderSchedulesList(loaded);
+  } catch(e) {
+    el('schedules-list').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+  }
+}
+
+function renderSchedulesList(files) {
+  const div = el('schedules-list');
+  if (!files.length) {
+    div.innerHTML = '<div class="alert alert-info">No schedule files. Create one with <strong>+ New schedule file</strong>.</div>';
+    return;
+  }
+  div.innerHTML = files.map(f => {
+    if (f.error) {
+      return `<div class="box" style="margin-bottom:12px;">
+        <div class="box-header"><span class="box-title mono">${esc(f.name)}</span></div>
+        <div class="box-body" style="padding:12px;">
+          <div class="alert alert-error">Failed to load: ${esc(f.error)}</div>
+        </div></div>`;
+    }
+    const d       = f.data;
+    const enabled = d.enabled !== false;
+    const entries = d.entries || [];
+    const active  = entries.filter(e => e.enabled !== false).length;
+    return `<div class="box" style="margin-bottom:16px;">
+      <div class="box-header" style="gap:8px; flex-wrap:wrap;">
+        <span class="box-title mono" style="font-size:14px;">${esc(f.name)}</span>
+        <span class="badge ${enabled ? 'badge-success' : 'badge-skipped'}">${enabled ? 'Enabled' : 'Disabled'}</span>
+        <span class="text-muted" style="font-size:12px;">
+          ⏰&nbsp;<code>${esc(d.cron || '—')}</code>
+          &nbsp;·&nbsp;${active}/${entries.length} entries active
+        </span>
+        <div style="flex:1;"></div>
+        <button class="btn btn-outline btn-sm"
+          onclick="toggleScheduleFileEnabled('${esc(f.name)}')">
+          ${enabled ? 'Disable' : 'Enable'}
+        </button>
+        <button class="btn btn-outline btn-sm"
+          onclick="openSeModal('${esc(f.name)}','','')">+ Add entry</button>
+        <button class="btn btn-danger btn-sm"
+          onclick="deleteScheduleFile('${esc(f.name)}')">Delete file</button>
+      </div>
+      ${d.description ? `<div style="padding:6px 14px 4px; font-size:12px; color:var(--c-muted);">${esc(d.description)}</div>` : ''}
+      <div class="box-body">
+        ${entries.length ? `
+          <table>
+            <thead><tr>
+              <th>Package</th><th>Version</th><th>Platform</th>
+              <th>CVMFS target</th><th>Flags</th>
+              <th style="text-align:center;">On</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${entries.map((e, i) => `<tr style="${e.enabled === false ? 'opacity:0.5;' : ''}">
+                <td><span class="mono" style="font-weight:600;">${esc(e.package || '—')}</span></td>
+                <td><span class="mono">${esc(e.version || 'latest')}</span></td>
+                <td><span class="mono">${esc(e.platform || '—')}</span></td>
+                <td class="mono" style="font-size:11px; max-width:160px; overflow:hidden;
+                    text-overflow:ellipsis; white-space:nowrap;" title="${esc(e.cvmfs_target || '')}">
+                  ${esc(e.cvmfs_target || '—')}</td>
+                <td style="font-size:11px;">
+                  ${e.rebuild  ? '<span class="tag">rebuild</span>'  : ''}
+                  ${e.no_deps  ? '<span class="tag">no-deps</span>'  : ''}
+                  ${e.debug    ? '<span class="tag">debug</span>'    : ''}
+                </td>
+                <td style="text-align:center;">
+                  <input type="checkbox" style="width:auto; cursor:pointer;"
+                    ${e.enabled !== false ? 'checked' : ''}
+                    onchange="setEntryEnabled('${esc(f.name)}',${i},this.checked)">
+                </td>
+                <td style="display:flex; gap:4px;">
+                  <button class="btn btn-outline btn-sm"
+                    onclick="showBuildModal('${esc(e.package||'')}','${esc(e.version||'')}')">
+                    ▶ Now</button>
+                  <button class="btn btn-danger btn-sm"
+                    onclick="deleteScheduleEntry('${esc(f.name)}',${i})">✕</button>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>` :
+          '<div class="empty" style="padding:16px;"><p>No entries — click <strong>+ Add entry</strong> to add packages.</p></div>'
+        }
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveScheduleFile(filename) {
+  const data = State.schedules[filename];
+  if (!data) return false;
+  const sha     = data._sha;
+  const payload = {
+    cron:        data.cron        || '',
+    description: data.description || '',
+    enabled:     data.enabled !== false,
+    entries:     data.entries     || [],
+  };
+  const content = toBase64Unicode(JSON.stringify(payload, null, 2) + '\n');
+  try {
+    const body = {
+      message: sha ? `schedules: update ${filename}` : `schedules: create ${filename}`,
+      content,
+    };
+    if (sha) body.sha = sha;
+    const res = await ghFetch(
+      `/repos/${State.owner}/${State.repo}/contents/schedules/${filename}`,
+      { method: 'PUT', body: JSON.stringify(body) }
+    );
+    if (res && res.content) data._sha = res.content.sha;
+    return true;
+  } catch(e) {
+    alert('Save failed: ' + e.message);
+    return false;
+  }
+}
+
+async function toggleScheduleFileEnabled(filename) {
+  const data = State.schedules[filename];
+  if (!data) return;
+  data.enabled = !(data.enabled !== false);
+  const ok = await saveScheduleFile(filename);
+  if (ok) loadSchedules();
+}
+
+async function setEntryEnabled(filename, idx, enabled) {
+  const data = State.schedules[filename];
+  if (!data || !data.entries[idx]) return;
+  data.entries[idx].enabled = enabled;
+  await saveScheduleFile(filename);
+  // Re-render from in-memory state (no full reload needed)
+  renderSchedulesList(
+    Object.entries(State.schedules).map(([name, d]) => ({ name, data: d }))
+  );
+}
+
+async function deleteScheduleEntry(filename, idx) {
+  if (!confirm('Remove this entry from the schedule?')) return;
+  const data = State.schedules[filename];
+  if (!data) return;
+  data.entries.splice(idx, 1);
+  const ok = await saveScheduleFile(filename);
+  if (ok) loadSchedules();
+}
+
+async function deleteScheduleFile(filename) {
+  if (!confirm(`Delete schedule file "${filename}"?\nThis action cannot be undone.`)) return;
+  const data = State.schedules[filename];
+  if (!data || !data._sha) {
+    alert('Cannot delete: SHA not known. Reload the Schedules tab first.');
+    return;
+  }
+  try {
+    await ghFetch(
+      `/repos/${State.owner}/${State.repo}/contents/schedules/${filename}`,
+      { method: 'DELETE', body: JSON.stringify({
+          message: `schedules: delete ${filename}`,
+          sha: data._sha,
+        })
+      }
+    );
+    delete State.schedules[filename];
+    loadSchedules();
+  } catch(e) { alert('Delete failed: ' + e.message); }
+}
+
+// ── Schedule modals ────────────────────────────────────────────────────────
+
+function showNewScheduleModal() {
+  if (!State.token) { showAuthModal(); return; }
+  el('ns-name').value = 'nightly.json';
+  el('ns-cron').value = '0 2 * * *';
+  el('ns-desc').value = '';
+  el('ns-error').style.display = 'none';
+  showModal('new-schedule-modal');
+  setTimeout(() => el('ns-name').focus(), 100);
+}
+
+async function createScheduleFile() {
+  let name = el('ns-name').value.trim();
+  if (!name) {
+    el('ns-error').textContent = 'File name is required.';
+    el('ns-error').style.display = 'block'; return;
+  }
+  if (!name.endsWith('.json')) name += '.json';
+  if (State.schedules[name]) {
+    el('ns-error').textContent = `"${name}" already exists.`;
+    el('ns-error').style.display = 'block'; return;
+  }
+  State.schedules[name] = {
+    cron:        el('ns-cron').value.trim(),
+    description: el('ns-desc').value.trim(),
+    enabled:     true,
+    entries:     [],
+  };
+  const ok = await saveScheduleFile(name);
+  if (ok) { hideModal('new-schedule-modal'); loadSchedules(); }
+}
+
+// Open the entry editor modal.
+//   filename  — pre-select this schedule file ('' to show selector)
+//   pkgName   — pre-fill package name ('' to leave blank)
+//   pkgVer    — pre-fill version ('' to leave blank)
+function openSeModal(filename, pkgName, pkgVer) {
+  if (!State.token) { showAuthModal(); return; }
+
+  // Populate file selector
+  const fileNames  = Object.keys(State.schedules);
+  const fileSelect = el('se-target-file');
+  fileSelect.innerHTML = fileNames.length
+    ? fileNames.map(n =>
+        `<option value="${esc(n)}" ${n === filename ? 'selected' : ''}>${esc(n)}</option>`
+      ).join('')
+    : '<option value="">— no schedule files —</option>';
+  // Hide the selector when there is exactly one file and it is pre-selected
+  el('se-file-row').style.display =
+    (fileNames.length === 1 && filename === fileNames[0]) ? 'none' : 'block';
+
+  // Pre-fill fields
+  el('se-package').value = pkgName || '';
+  el('se-version').value = (pkgVer && pkgVer !== '—') ? pkgVer : '';
+  el('se-rebuild').checked  = false;
+  el('se-no-deps').checked  = false;
+  el('se-debug').checked    = false;
+  el('se-jobs').value       = '0';
+  el('se-config-dir').value = '';
+  el('se-extra-args').value = '';
+
+  // Populate platform select from config
+  const pSel = el('se-platform');
+  pSel.innerHTML = '';
+  getPlatforms().forEach(p => {
+    const o = document.createElement('option');
+    o.value = p; o.textContent = p; pSel.appendChild(o);
+  });
+
+  updateSeTarget();
+  el('se-error').style.display = 'none';
+  el('se-modal-title').textContent = pkgName ? `Schedule — ${pkgName}` : 'Add schedule entry';
+  showModal('sched-entry-modal');
+}
+
+function updateSeTarget() {
+  const c      = State.config || {};
+  const prefix = c.cvmfs_prefix || '/cvmfs/sft.cern.ch/lcg/releases';
+  const pkg    = el('se-package').value.trim();
+  const ver    = el('se-version').value.trim();
+  const plat   = el('se-platform').value;
+  if (pkg) el('se-cvmfs-target').value = `${prefix}/${pkg}/${ver}/${plat}`;
+}
+
+async function saveScheduleEntry() {
+  const filename = el('se-target-file').value;
+  if (!filename) {
+    el('se-error').textContent = 'Select a schedule file.';
+    el('se-error').style.display = 'block'; return;
+  }
+  const data = State.schedules[filename];
+  if (!data) {
+    el('se-error').textContent = 'Schedule file not loaded — reload the Schedules tab.';
+    el('se-error').style.display = 'block'; return;
+  }
+  const pkg    = el('se-package').value.trim();
+  const target = el('se-cvmfs-target').value.trim();
+  if (!pkg)    { el('se-error').textContent = 'Package name is required.';    el('se-error').style.display = 'block'; return; }
+  if (!target) { el('se-error').textContent = 'CVMFS target path is required.'; el('se-error').style.display = 'block'; return; }
+
+  const entry = {
+    package:          pkg,
+    version:          el('se-version').value.trim(),
+    platform:         el('se-platform').value,
+    cvmfs_target:     target,
+    rebuild:          el('se-rebuild').checked,
+    no_deps:          el('se-no-deps').checked,
+    debug:            el('se-debug').checked,
+    jobs:             el('se-jobs').value.trim() || '0',
+    config_dir:       el('se-config-dir').value.trim(),
+    architecture:     '',
+    extra_build_args: el('se-extra-args').value.trim(),
+    enabled:          true,
+  };
+
+  data.entries = data.entries || [];
+  data.entries.push(entry);
+  const ok = await saveScheduleFile(filename);
+  if (ok) { hideModal('sched-entry-modal'); loadSchedules(); }
+}
+
+function scheduleFromDetail() {
+  const pkg       = State._detailPkg;
+  if (!pkg) return;
+  const fileNames = Object.keys(State.schedules);
+  if (!fileNames.length) {
+    if (confirm('No schedule files loaded. Go to the Schedules tab to create one?')) {
+      hideModal('pkg-detail-modal');
+      nav('schedules');
+    }
+    return;
+  }
+  openSeModal(fileNames[0], pkg.name, pkg.version);
+}
+
 // ── Utilities ──────────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -1839,8 +2425,9 @@ document.addEventListener('keydown', e => {
       setAuthStatus(true, user.login);
     } catch { State.token = ''; sessionStorage.removeItem('gh_token'); }
   }
-  // Load providers from the central registry (public, no auth needed).
-  loadProviders();
+  // Load providers from the central registry first so _ghOwner/_ghRepo are
+  // always resolved before any checkbox or getRecipeRepos() call.
+  await loadProviders();
   // loadConfig shows the repo-setup modal if owner/repo are unknown.
   await loadConfig();
   if (!State.owner || !State.repo) return; // waiting for user input in modal
@@ -1849,7 +2436,8 @@ document.addEventListener('keydown', e => {
   // Auto-refresh running badge every 30s
   setInterval(async () => {
     try {
-      const data = await ghGet(`/repos/${State.owner}/${State.repo}/actions/runs?status=in_progress&per_page=5`);
+      const wf   = encodeURIComponent((State.config || {}).publish_workflow || 'cvmfs-publish.yml');
+      const data = await ghGet(`/repos/${State.owner}/${State.repo}/actions/workflows/${wf}/runs?status=in_progress&per_page=5`);
       updateRunningBadge((data.workflow_runs || []).length);
     } catch {}
   }, 30000);
