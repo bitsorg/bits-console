@@ -1,0 +1,286 @@
+# CVMFS publishing pipeline for bits packages
+#
+# Triggered via workflow_dispatch from the web UI (SPA) or manually.
+# Three sequential jobs:
+#
+#   build    — runs on the platform-specific self-hosted runner, calls
+#              "bits build" then "bits publish" to copy, relocate, and stream
+#              the installed tree to the ingestion spool.
+#
+#   ingest   — runs on the ingestion runner, invokes cvmfs-ingest in --once
+#              mode to compress, hash, upload blobs, and emit the manifest.
+#
+#   publish  — runs on the CVMFS stratum-0 runner, calls cvmfs-publish.sh
+#              to open a catalog-only transaction using the pre-staged grafts.
+#
+# Required repository secrets:
+#   SPOOL_SSH_KEY   — SSH private key for the ingestion host (build → ingest rsync)
+#   SPOOL_USER      — SSH user on the ingestion host
+#   SPOOL_HOST      — Hostname or IP of the ingestion host
+#   SPOOL_PATH      — Absolute path to the spool root on the ingestion host
+#   CVMFS_REPO      — CVMFS repository name (e.g. sft.cern.ch)
+#
+# Runner labels used:
+#   bits-build-<platform>   — e.g. bits-build-x86_64-el9
+#   bits-ingest             — the ingestion host runner
+#   bits-cvmfs-publisher    — the stratum-0 / publisher runner
+
+name: CVMFS Publish
+
+# Write permission is needed by the update-status job to commit cvmfs-status.json.
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package name (as in the .bits recipe, e.g. absl)"
+        required: true
+        type: string
+      version:
+        description: "Version to publish (leave blank for latest built)"
+        required: false
+        type: string
+      platform:
+        description: "Build platform label (e.g. x86_64-el9)"
+        required: true
+        type: choice
+        options:
+          - x86_64-el9
+          - x86_64-el8
+          - aarch64-el9
+      cvmfs_target:
+        description: "Final CVMFS install path (e.g. /lcg/releases/absl/20230802.1/x86_64-el9)"
+        required: true
+        type: string
+      rebuild:
+        description: "Force rebuild even if already built"
+        required: false
+        default: false
+        type: boolean
+      # ── Advanced build options ──────────────────────────────────────────────
+      jobs:
+        description: "Parallel build jobs (0 = auto-detect from nproc)"
+        required: false
+        default: "0"
+        type: string
+      no_deps:
+        description: "Skip building dependencies (build this package only)"
+        required: false
+        default: false
+        type: boolean
+      debug:
+        description: "Enable verbose/debug output from bits build"
+        required: false
+        default: false
+        type: boolean
+      config_dir:
+        description: "Recipe config directory (leave blank to auto-detect from provider)"
+        required: false
+        type: string
+      architecture:
+        description: "Architecture string override (leave blank to use runner default)"
+        required: false
+        type: string
+      extra_build_args:
+        description: "Extra arguments appended verbatim to bits build (e.g. --flag value)"
+        required: false
+        type: string
+
+env:
+  SPOOL_REMOTE: "${{ secrets.SPOOL_USER }}@${{ secrets.SPOOL_HOST }}:${{ secrets.SPOOL_PATH }}"
+  # pkg-id is constructed in the build job and shared via outputs
+  BITS_WORK_DIR: sw
+
+jobs:
+  # ------------------------------------------------------------------
+  build:
+  # ------------------------------------------------------------------
+    name: "Build & stage — ${{ inputs.package }} (${{ inputs.platform }})"
+    runs-on: ["self-hosted", "bits-build-${{ inputs.platform }}"]
+    outputs:
+      pkg_id: ${{ steps.publish.outputs.pkg_id }}
+
+    steps:
+      - name: Checkout recipe config directory
+        uses: actions/checkout@v4
+        with:
+          # Use the caller-supplied config_dir repo name (owner/repo) when set,
+          # otherwise fall back to the variable defined in repository settings.
+          repository: ${{ inputs.config_dir || vars.BITS_CONFIG_REPO || 'cern-sis/lcg.bits' }}
+          path: recipe-config
+
+      - name: Set up SSH key for spool rsync
+        run: |
+          install -d -m 700 ~/.ssh
+          echo "${{ secrets.SPOOL_SSH_KEY }}" > ~/.ssh/spool_key
+          chmod 600 ~/.ssh/spool_key
+          ssh-keyscan -H "${{ secrets.SPOOL_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Build package
+        run: |
+          # Assemble optional flags from inputs.
+          EXTRA_FLAGS=""
+          [[ "${{ inputs.rebuild }}"  == "true" ]] && EXTRA_FLAGS+=" --rebuild"
+          [[ "${{ inputs.no_deps }}"  == "true" ]] && EXTRA_FLAGS+=" --no-deps"
+          [[ "${{ inputs.debug }}"    == "true" ]] && EXTRA_FLAGS+=" --debug"
+          [[ -n "${{ inputs.architecture }}" ]]    && EXTRA_FLAGS+=" --architecture ${{ inputs.architecture }}"
+          JOBS="${{ inputs.jobs }}"
+          [[ -n "$JOBS" && "$JOBS" != "0" ]]       && EXTRA_FLAGS+=" --jobs $JOBS"
+          # Append any free-form extra arguments last.
+          EXTRA_FLAGS+=" ${{ inputs.extra_build_args }}"
+
+          bits build \
+            --config-dir recipe-config \
+            $EXTRA_FLAGS \
+            ${{ inputs.package }} \
+            ${{ inputs.version && format('{0}', inputs.version) || '' }}
+
+      - name: Publish (copy → relocate → stream to spool)
+        id: publish
+        run: |
+          # Construct the pkg-id that bits publish will use and capture it.
+          ARCH=${{ inputs.architecture || '$(bits architecture)' }}
+          VERSION_DIR=$(ls -1d "$BITS_WORK_DIR/$ARCH/${{ inputs.package }}"/*/  \
+                        | sort | tail -1 | xargs basename)
+          PKG_ID="${{ inputs.package }}-${VERSION_DIR}-${ARCH/\//_}"
+          echo "pkg_id=$PKG_ID" >> "$GITHUB_OUTPUT"
+
+          bits publish \
+            "${{ inputs.package }}" \
+            ${{ inputs.version && format('{0}', inputs.version) || '' }} \
+            --cvmfs-target "${{ inputs.cvmfs_target }}" \
+            --spool "$SPOOL_REMOTE" \
+            --rsync-opts "-e 'ssh -i ~/.ssh/spool_key -o StrictHostKeyChecking=yes'"
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/spool_key
+
+  # ------------------------------------------------------------------
+  ingest:
+  # ------------------------------------------------------------------
+    name: "Ingest blobs — ${{ needs.build.outputs.pkg_id }}"
+    needs: build
+    runs-on: ["self-hosted", "bits-ingest"]
+
+    steps:
+      - name: Run cvmfs-ingest (--once mode)
+        run: |
+          cvmfs-ingest \
+            --spool   "${{ secrets.SPOOL_PATH }}" \
+            --backend "${{ vars.CVMFS_BACKEND_TYPE || 'local' }}" \
+            --backend-path "${{ vars.CVMFS_BACKEND_PATH }}" \
+            --hash    "${{ vars.CVMFS_HASH_ALGO || 'sha1' }}" \
+            --concurrency "${{ vars.INGEST_CONCURRENCY || '0' }}" \
+            --once
+
+      - name: Upload manifest as CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ needs.build.outputs.pkg_id }}
+          path: "${{ secrets.SPOOL_PATH }}/completed/${{ needs.build.outputs.pkg_id }}.manifest.json"
+          retention-days: 7
+
+  # ------------------------------------------------------------------
+  publish:
+  # ------------------------------------------------------------------
+    name: "CVMFS transaction — ${{ needs.build.outputs.pkg_id }}"
+    needs: [build, ingest]
+    runs-on: ["self-hosted", "bits-cvmfs-publisher"]
+
+    steps:
+      - name: Download manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: manifest-${{ needs.build.outputs.pkg_id }}
+          path: /tmp/manifests
+
+      - name: Checkout bits-cvmfs-ingest (for cvmfs-publish.sh)
+        uses: actions/checkout@v4
+        with:
+          repository: cern-sis/bits-cvmfs-ingest
+          path: bits-cvmfs-ingest
+
+      - name: Open transaction and publish
+        run: |
+          bash bits-cvmfs-ingest/cvmfs-publish.sh \
+            --repo     "${{ secrets.CVMFS_REPO }}" \
+            --manifest "/tmp/manifests/${{ needs.build.outputs.pkg_id }}.manifest.json"
+
+  # ------------------------------------------------------------------
+  update-status:
+  # ------------------------------------------------------------------
+    name: "Update cvmfs-status.json"
+    needs: [build, publish]
+    # Run on the default GitHub-hosted runner — just needs git + python3.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout bits-console
+        uses: actions/checkout@v4
+        with:
+          # Use the built-in token; permissions: contents: write is declared above.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update cvmfs-status.json
+        env:
+          PKG_ID:       ${{ needs.build.outputs.pkg_id }}
+          PACKAGE:      ${{ inputs.package }}
+          VERSION:      ${{ inputs.version }}
+          PLATFORM:     ${{ inputs.platform }}
+          CVMFS_TARGET: ${{ inputs.cvmfs_target }}
+          RUN_ID:       ${{ github.run_id }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, datetime
+
+          path = "cvmfs-status.json"
+          # Initialise from scratch when the file is absent (first run after
+          # the repo was cloned — cvmfs-status.json is in .gitignore).
+          if not os.path.exists(path):
+              data = {"updated_at": None, "packages": []}
+          else:
+              with open(path) as f:
+                  data = json.load(f)
+
+          pkg_id       = os.environ["PKG_ID"]
+          published_at = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          entry = {
+              "pkg_id":       pkg_id,
+              "package":      os.environ["PACKAGE"],
+              "version":      os.environ["VERSION"],
+              "platform":     os.environ["PLATFORM"],
+              "cvmfs_target": os.environ["CVMFS_TARGET"],
+              "published_at": published_at,
+              "run_id":       os.environ["RUN_ID"],
+          }
+
+          # Replace existing entry for the same pkg_id, otherwise append.
+          packages = data.get("packages", [])
+          idx = next((i for i, p in enumerate(packages) if p.get("pkg_id") == pkg_id), None)
+          if idx is not None:
+              packages[idx] = entry
+          else:
+              packages.append(entry)
+
+          data["packages"]   = packages
+          data["updated_at"] = published_at
+
+          with open(path, "w") as f:
+              json.dump(data, f, indent=2)
+              f.write("\n")
+
+          print(f"Updated {path}: {pkg_id} → {entry['cvmfs_target']}")
+          PYEOF
+
+      - name: Commit and push cvmfs-status.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cvmfs-status.json
+          git diff --cached --quiet || \
+            git commit -m "cvmfs-status: publish ${{ needs.build.outputs.pkg_id }}" && \
+            git push

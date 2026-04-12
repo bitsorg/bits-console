@@ -938,7 +938,15 @@ async function loadProviders() {
     // This is a public repo; no auth needed.
     const data = await ghGet('/repos/bitsorg/bits-providers/contents/registry.json');
     const text = atob(data.content.replace(/\n/g,''));
-    State.providers = JSON.parse(text);
+    const raw  = JSON.parse(text);
+    // Resolve the actual GitHub owner/repo from the homepage URL when the
+    // owner field is a display name (contains spaces or slashes) rather than
+    // a plain GitHub org slug.
+    State.providers = raw.map(p => ({
+      ...p,
+      _ghOwner: resolveGhOwner(p),
+      _ghRepo:  resolveGhRepo(p),
+    }));
   } catch(e) {
     console.warn('Could not load provider registry:', e.message);
     State.providers = [];
@@ -946,21 +954,47 @@ async function loadProviders() {
   renderProviders();
 }
 
-function isProviderActive(p) {
-  return State.activeProviders.some(a => a.owner === p.owner && a.repo === p.repo);
+// Return the GitHub org/user slug to use in API calls.
+// Falls back to parsing the homepage URL when owner looks like a display name.
+function resolveGhOwner(p) {
+  if (p.owner && !p.owner.includes('/') && !p.owner.includes(' '))
+    return p.owner;
+  if (p.homepage) {
+    const m = p.homepage.match(/github\.com\/([^/]+)/);
+    if (m) return m[1];
+  }
+  return p.owner || '';
 }
 
-function toggleProvider(owner, repo, branch, name, checked) {
+function resolveGhRepo(p) {
+  if (p.repo) return p.repo;
+  if (p.homepage) {
+    const m = p.homepage.match(/github\.com\/[^/]+\/([^/]+)/);
+    if (m) return m[1].replace(/\.git$/, '');
+  }
+  return '';
+}
+
+function isProviderActive(p) {
+  // Match on the resolved GitHub owner + repo.
+  const ghOwner = p._ghOwner || p.owner;
+  const ghRepo  = p._ghRepo  || p.repo;
+  return State.activeProviders.some(a => a.owner === ghOwner && a.repo === ghRepo);
+}
+
+function toggleProvider(ghOwner, ghRepo, branch, name, checked) {
   if (checked) {
-    if (!isProviderActive({ owner, repo }))
-      State.activeProviders.push({ owner, repo, branch: branch || 'main', name });
+    if (!State.activeProviders.some(a => a.owner === ghOwner && a.repo === ghRepo))
+      State.activeProviders.push({ owner: ghOwner, repo: ghRepo, branch: branch || 'main', name });
   } else {
     State.activeProviders = State.activeProviders.filter(
-      a => !(a.owner === owner && a.repo === repo)
+      a => !(a.owner === ghOwner && a.repo === ghRepo)
     );
   }
   sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
   renderProviderSummary();
+  // Reload the package list immediately so the change is reflected.
+  loadPackages();
 }
 
 function renderProviders() {
@@ -971,18 +1005,24 @@ function renderProviders() {
     renderProviderSummary(); return;
   }
   list.innerHTML = State.providers.map(p => {
-    const active  = isProviderActive(p);
-    const tags    = (p.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
-    const safeId  = esc(p.id || `${p.owner}/${p.repo}`);
+    const active   = isProviderActive(p);
+    const ghOwner  = p._ghOwner || p.owner;
+    const ghRepo   = p._ghRepo  || p.repo;
+    const tags     = (p.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+    // Show display owner (from registry) + resolved GitHub path
+    const displayOwner = esc(p.owner || ghOwner);
+    const ghPath       = ghOwner !== p.owner ? `<span class="text-muted"> → ${esc(ghOwner)}/${esc(ghRepo)}</span>` : '';
     return `<label class="provider-row" style="display:flex;align-items:flex-start;gap:10px;
         padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--c-border);">
       <input type="checkbox" style="margin-top:3px;width:auto;"
         ${active ? 'checked' : ''}
-        onchange="toggleProvider('${esc(p.owner)}','${esc(p.repo)}','${esc(p.branch||'main')}','${esc(p.name||p.repo)}',this.checked)">
+        onchange="toggleProvider('${esc(ghOwner)}','${esc(ghRepo)}','${esc(p.branch||'main')}','${esc(p.name||ghRepo)}',this.checked)">
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:13px;">
-          ${esc(p.name || p.repo)}
-          <span class="mono text-muted" style="font-weight:400;font-size:11px;margin-left:6px;">${esc(p.owner)}/${esc(p.repo)}</span>
+          ${esc(p.name || ghRepo)}
+          <span class="mono text-muted" style="font-weight:400;font-size:11px;margin-left:6px;">
+            ${displayOwner}/${esc(ghRepo)}${ghPath}
+          </span>
         </div>
         <div style="font-size:12px;color:var(--c-muted);margin-top:2px;">${esc(p.description||'')}</div>
         <div style="margin-top:4px;">${tags}</div>
