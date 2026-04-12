@@ -1,0 +1,6 @@
+{
+  "cron": "0 2 * * *",
+  "description": "Nightly",
+  "enabled": true,
+  "entries": []
+}
