@@ -1520,24 +1520,26 @@ async function loadProviders() {
 }
 
 // Return the GitHub org/user slug to use in API calls.
-// Falls back to parsing the homepage URL when owner looks like a display name.
+// Always prefers the github.com path in the homepage URL — it is the
+// authoritative source for the real GitHub owner, regardless of what the
+// owner field says (display names like "CERN/EP-SFT" or "LHCb" are common).
 function resolveGhOwner(p) {
-  if (p.owner && !p.owner.includes('/') && !p.owner.includes(' '))
-    return p.owner;
   if (p.homepage) {
-    const m = p.homepage.match(/github\.com\/([^/]+)/);
+    const m = p.homepage.match(/github\.com\/([^/?#]+)/);
     if (m) return m[1];
   }
+  // Fallback: use owner only if it looks like a plain GitHub slug.
+  if (p.owner && !p.owner.includes('/') && !p.owner.includes(' '))
+    return p.owner;
   return p.owner || '';
 }
 
 function resolveGhRepo(p) {
-  if (p.repo) return p.repo;
   if (p.homepage) {
-    const m = p.homepage.match(/github\.com\/[^/]+\/([^/]+)/);
+    const m = p.homepage.match(/github\.com\/[^/?#]+\/([^/?#]+)/);
     if (m) return m[1].replace(/\.git$/, '');
   }
-  return '';
+  return p.repo || '';
 }
 
 // Stable key for a registry entry — based on the registry fields, not resolved ones,
