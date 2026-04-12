@@ -1904,11 +1904,24 @@ async function getRecipeRepos() {
   for (const rr of repoList) {
     const owner  = rr.owner  || State.owner;
     const repo   = rr.repo;
-    const branch = rr.branch || 'main';
+    let   branch = rr.branch || 'main';
     const label  = rr.name   || `${owner}/${repo}`;
     if (!repo) continue;
     try {
-      const tree = await ghGet(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+      // Fetch the recursive tree.  If the branch doesn't exist (e.g. the repo
+      // uses 'master' but the entry says 'main'), look up the real default
+      // branch from the repo metadata and retry once.
+      let tree;
+      try {
+        tree = await ghGet(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+      } catch (treeErr) {
+        if (!/404|not found/i.test(treeErr.message)) throw treeErr;
+        const meta = await ghGet(`/repos/${owner}/${repo}`);
+        const def  = meta.default_branch || 'master';
+        if (def === branch) throw treeErr;   // same branch — not a naming issue
+        branch = def;
+        tree   = await ghGet(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+      }
       if (tree.truncated) console.warn(`Tree truncated for ${label} — some packages may be missing`);
       // Match .sh files at any depth; non-bits-recipe files are filtered out
       // later in parseRecipe() by checking for a package: YAML field.
