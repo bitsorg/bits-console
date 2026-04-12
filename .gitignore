@@ -1,0 +1,15 @@
+# bits-console — files that must NOT be committed to git
+#
+# These files contain community-specific configuration that may reveal
+# infrastructure topology or storage paths.  Keep them local or let CI
+# generate them; they should never appear in the repository history.
+
+# Runtime bits configuration (store paths, work directory, …).
+# Copy bits.rc.example → bits.rc and fill in your values.
+bits.rc
+
+# Live CVMFS migration state — generated and committed by the publish
+# workflow after each successful cvmfs-publish job.  Starting fresh from
+# the workflow ensures the file always reflects reality and never contains
+# stale data from a template clone.
+cvmfs-status.json

@@ -1,0 +1,15 @@
+[bits]
+# bits configuration used by all workflow runs in this repository.
+#
+# ⚠ DO NOT COMMIT bits.rc — it is listed in .gitignore.
+# Copy this file to bits.rc and fill in your values.
+# The actual bits.rc file stays local and untracked.
+
+# Work directory for built packages on the runner.
+workDir=sw
+
+# Remote binary store for pre-built tarballs (read-only for developers).
+# remoteStore=https://s3.cern.ch/swift/v1/my-bits-store
+
+# Write store used by CI to upload new tarballs.
+# writeStore=s3://my-bits-store::rw

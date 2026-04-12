@@ -1,0 +1,57 @@
+# bits-console — community UI configuration
+#
+# Fork this repository, edit this file, and configure the repository secrets
+# described in .github/workflows/cvmfs-publish.yml to stand up your own
+# bits build and CVMFS publishing console.
+#
+# ⚠ IMPORTANT — ALL VALUES IN THIS FILE ARE PUBLIC.
+#   This file is committed to git and served via the GitHub Contents API.
+#   Do NOT put passwords, tokens, SSH keys, or storage credentials here.
+#   Secrets belong in repository Settings → Secrets and variables → Actions.
+#
+# The SPA reads this file at startup.  Changes take effect on the next
+# browser page load.
+
+# ── Display ───────────────────────────────────────────────────────────────────
+
+# Title shown in the browser tab and the console header.
+title: "bits Console"
+
+# Short subtitle displayed under the title (e.g. your experiment or group name).
+subtitle: "My Software Stack"
+
+# ── GitHub repository ─────────────────────────────────────────────────────────
+# Auto-detected from the GitHub Pages URL.  Override here if your Pages URL
+# does not follow the standard {owner}.github.io/{repo} pattern.
+# owner: myorg
+# repo:  bits-console
+
+# ── CVMFS ─────────────────────────────────────────────────────────────────────
+
+# CVMFS repository name shown in the UI and used to construct target paths.
+cvmfs_repo: my-cvmfs-repo.example.org
+
+# Default prefix prepended to package paths on CVMFS.
+# The console appends /<package>/<version>/<platform> automatically.
+cvmfs_prefix: /cvmfs/my-cvmfs-repo.example.org/releases
+
+# ── Build platforms ───────────────────────────────────────────────────────────
+# Each entry must match the suffix of a self-hosted runner label registered
+# in this repository:   bits-build-<platform>
+platforms:
+  - x86_64-el9
+
+# ── Recipe repositories ───────────────────────────────────────────────────────
+# The console merges packages from all listed repositories.
+# Leave this list empty to select repositories interactively via the
+# Providers panel in the Settings tab (sourced from bitsorg/bits-providers).
+#
+# Each entry:
+#   owner:  GitHub organisation or user
+#   repo:   repository name
+#   branch: branch to read (default: main)
+recipe_repos: []
+
+# ── Workflow ──────────────────────────────────────────────────────────────────
+# Workflow file to trigger for build + CVMFS publishing.
+publish_workflow: cvmfs-publish.yml

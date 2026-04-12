@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bits Console</title>
+<style>
+/* ── Reset & base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --sidebar-w:   220px;
+  --hdr-h:        52px;
+  --c-bg:        #f4f6f9;
+  --c-surface:   #ffffff;
+  --c-sidebar:   #1a2332;
+  --c-sidebar2:  #243040;
+  --c-accent:    #2ea44f;
+  --c-accent-h:  #22863a;
+  --c-danger:    #d73a49;
+  --c-warn:      #e36209;
+  --c-info:      #0075ca;
+  --c-muted:     #6a737d;
+  --c-border:    #e1e4e8;
+  --c-text:      #24292e;
+  --c-tag-bg:    #eaf5ff;
+  --c-tag-fg:    #0366d6;
+  --radius:      6px;
+  --shadow:      0 1px 3px rgba(0,0,0,.12);
+  --font:        -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono:   "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--c-text);
+  background: var(--c-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+#header {
+  height: var(--hdr-h);
+  background: var(--c-sidebar);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #111;
+}
+#header .logo { font-size: 18px; font-weight: 700; letter-spacing: -.3px; color: #fff; }
+#header .logo span { color: var(--c-accent); }
+#header .subtitle { font-size: 12px; color: #8b949e; margin-top: 1px; }
+#header .spacer { flex: 1; }
+#auth-status { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+#auth-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #444; }
+#auth-status .dot.ok  { background: var(--c-accent); }
+#auth-status .dot.err { background: var(--c-danger); }
+#auth-btn {
+  background: none; border: 1px solid #444; color: #ccc;
+  padding: 4px 10px; border-radius: var(--radius); cursor: pointer; font-size: 12px;
+}
+#auth-btn:hover { border-color: #888; color: #fff; }
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+#layout { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w);
+  background: var(--c-sidebar);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+.nav-section { padding: 8px 16px 4px; font-size: 11px; color: #586069; text-transform: uppercase; letter-spacing: .6px; }
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 16px; cursor: pointer;
+  color: #c9d1d9; font-size: 13px; border-left: 3px solid transparent;
+  transition: background .1s;
+}
+.nav-item:hover { background: var(--c-sidebar2); color: #fff; }
+.nav-item.active { background: var(--c-sidebar2); color: #fff; border-left-color: var(--c-accent); }
+.nav-item .icon { width: 16px; text-align: center; font-style: normal; }
+#sidebar-footer { margin-top: auto; padding: 12px 16px; font-size: 11px; color: #586069; }
+
+/* ── Main content ─────────────────────────────────────────────────────────── */
+#main { flex: 1; overflow-y: auto; padding: 24px; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.page-title { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.page-sub { color: var(--c-muted); margin-bottom: 20px; font-size: 13px; }
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.card {
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+}
+.card .card-label { font-size: 12px; color: var(--c-muted); margin-bottom: 6px; }
+.card .card-value { font-size: 26px; font-weight: 700; }
+.card .card-value.green  { color: var(--c-accent); }
+.card .card-value.orange { color: var(--c-warn); }
+.card .card-value.red    { color: var(--c-danger); }
+.card .card-value.blue   { color: var(--c-info); }
+
+/* ── Section box ─────────────────────────────────────────────────────────── */
+.box {
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--radius); margin-bottom: 20px; box-shadow: var(--shadow);
+}
+.box-header {
+  padding: 12px 16px; border-bottom: 1px solid var(--c-border);
+  display: flex; align-items: center; gap: 8px;
+}
+.box-title { font-weight: 600; font-size: 14px; flex: 1; }
+.box-body { padding: 0; }
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { padding: 8px 12px; background: #f6f8fa; text-align: left; font-weight: 600;
+     border-bottom: 1px solid var(--c-border); color: var(--c-muted); font-size: 12px; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--c-border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f6f8fa; }
+
+/* ── Badges / status ─────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
+}
+.badge-success { background: #dcffe4; color: #1a7f37; }
+.badge-failure { background: #ffd7d7; color: #b91c1c; }
+.badge-running { background: #ddf4ff; color: #0550ae; }
+.badge-pending { background: #fff3cd; color: #854d0e; }
+.badge-skipped { background: #f0f0f0; color: #888; }
+.badge-cancelled { background: #fef3c7; color: #92400e; }
+
+.spinner {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid #b3d4ff; border-top-color: #0550ae;
+  animation: spin .7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: var(--radius); cursor: pointer;
+  font-size: 13px; font-weight: 500; border: 1px solid transparent;
+  transition: background .1s, opacity .1s;
+}
+.btn:disabled { opacity: .5; cursor: default; }
+.btn-primary { background: var(--c-accent); color: #fff; border-color: var(--c-accent-h); }
+.btn-primary:hover:not(:disabled) { background: var(--c-accent-h); }
+.btn-outline { background: #fff; color: var(--c-text); border-color: var(--c-border); }
+.btn-outline:hover:not(:disabled) { background: #f3f4f6; }
+.btn-danger  { background: var(--c-danger); color: #fff; border-color: #b91c1c; }
+.btn-danger:hover:not(:disabled)  { background: #b91c1c; }
+.btn-sm { padding: 3px 10px; font-size: 12px; }
+
+/* ── Forms ───────────────────────────────────────────────────────────────── */
+.form-row { margin-bottom: 14px; }
+.form-row label { display: block; font-weight: 500; font-size: 13px; margin-bottom: 4px; }
+.form-row input, .form-row select, .form-row textarea {
+  width: 100%; padding: 6px 10px; border: 1px solid var(--c-border);
+  border-radius: var(--radius); font-size: 13px; font-family: var(--font);
+  background: #fff;
+}
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+  outline: none; border-color: var(--c-info); box-shadow: 0 0 0 3px rgba(0,117,202,.15);
+}
+.form-hint { font-size: 11px; color: var(--c-muted); margin-top: 3px; }
+
+/* ── Search bar ──────────────────────────────────────────────────────────── */
+.search-bar {
+  display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap;
+}
+.search-bar input {
+  flex: 1; min-width: 200px; padding: 6px 10px;
+  border: 1px solid var(--c-border); border-radius: var(--radius); font-size: 13px;
+}
+.search-bar select {
+  padding: 6px 10px; border: 1px solid var(--c-border);
+  border-radius: var(--radius); font-size: 13px; background: #fff;
+}
+
+/* ── Package list ─────────────────────────────────────────────────────────── */
+.pkg-row td:first-child { font-weight: 600; font-family: var(--font-mono); font-size: 12px; }
+.pkg-version { font-family: var(--font-mono); font-size: 12px; color: var(--c-muted); }
+.pkg-desc { color: var(--c-muted); font-size: 12px; max-width: 280px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag {
+  display: inline-block; padding: 1px 7px; border-radius: 12px;
+  font-size: 11px; background: var(--c-tag-bg); color: var(--c-tag-fg);
+  margin-right: 3px;
+}
+
+/* ── Log viewer ──────────────────────────────────────────────────────────── */
+#log-viewer {
+  background: #0d1117; color: #c9d1d9; font-family: var(--font-mono);
+  font-size: 12px; padding: 16px; border-radius: var(--radius);
+  height: 420px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+  border: 1px solid #30363d;
+}
+#log-viewer .log-ts  { color: #586069; }
+#log-viewer .log-err { color: #ff7b72; }
+#log-viewer .log-ok  { color: #56d364; }
+#log-viewer .log-cmd { color: #79c0ff; }
+
+/* ── Progress bar ─────────────────────────────────────────────────────────── */
+.progress-wrap { background: var(--c-border); border-radius: 4px; height: 8px; overflow: hidden; margin: 6px 0; }
+.progress-bar  { height: 100%; background: var(--c-accent); border-radius: 4px; transition: width .4s; }
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal-bg.hidden { display: none; }
+.modal {
+  background: #fff; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  width: 480px; max-width: 96vw; max-height: 90vh; overflow-y: auto;
+}
+.modal-header {
+  padding: 16px 20px; border-bottom: 1px solid var(--c-border);
+  display: flex; align-items: center; gap: 8px;
+}
+.modal-header h3 { flex: 1; font-size: 16px; font-weight: 600; }
+.modal-header .close-btn { background: none; border: none; cursor: pointer; font-size: 18px; color: var(--c-muted); }
+.modal-body   { padding: 20px; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid var(--c-border); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── Job steps ───────────────────────────────────────────────────────────── */
+.job-pipeline { display: flex; align-items: center; gap: 0; margin: 12px 0; }
+.job-step {
+  flex: 1; text-align: center; padding: 10px 6px;
+  background: #f6f8fa; border: 1px solid var(--c-border);
+  font-size: 12px; font-weight: 500; position: relative;
+}
+.job-step:not(:last-child)::after {
+  content: '→'; position: absolute; right: -10px; top: 50%; transform: translateY(-50%);
+  color: var(--c-muted); font-size: 14px; z-index: 1; background: transparent;
+}
+.job-step:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.job-step:last-child  { border-radius: 0 var(--radius) var(--radius) 0; }
+.job-step.success { background: #dcffe4; border-color: #a3d9a5; }
+.job-step.failure { background: #ffd7d7; border-color: #f5a5a5; }
+.job-step.running { background: #ddf4ff; border-color: #a3c8f5; }
+.job-step.pending { background: #fff3cd; border-color: #fcd34d; }
+.job-step .step-icon { display: block; font-size: 16px; margin-bottom: 2px; }
+
+/* ── Settings ─────────────────────────────────────────────────────────────── */
+.settings-section { margin-bottom: 24px; }
+.settings-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--c-border); }
+.kv-table { width: 100%; }
+.kv-table td:first-child { font-weight: 500; width: 200px; color: var(--c-muted); }
+.kv-table td { padding: 5px 0; font-size: 13px; }
+.kv-table code { font-family: var(--font-mono); font-size: 12px;
+  background: #f6f8fa; padding: 1px 5px; border-radius: 3px; }
+
+/* ── Alerts ──────────────────────────────────────────────────────────────── */
+.alert { padding: 12px 16px; border-radius: var(--radius); font-size: 13px; margin-bottom: 16px; }
+.alert-info  { background: #ddf4ff; border: 1px solid #a3c8f5; color: #0550ae; }
+.alert-warn  { background: #fff3cd; border: 1px solid #fcd34d; color: #854d0e; }
+.alert-error { background: #ffd7d7; border: 1px solid #f5a5a5; color: #b91c1c; }
+.alert-ok    { background: #dcffe4; border: 1px solid #a3d9a5; color: #1a7f37; }
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.empty { text-align: center; padding: 40px 20px; color: var(--c-muted); }
+.empty .empty-icon { font-size: 40px; margin-bottom: 10px; }
+.empty p { font-size: 14px; }
+
+/* ── Provider list ────────────────────────────────────────────────────────── */
+.provider-row { transition: background .1s; }
+.provider-row:hover { background: #f6f8fa; }
+.provider-row:last-child { border-bottom: none !important; }
+
+/* ── Misc ─────────────────────────────────────────────────────────────────── */
+.mono { font-family: var(--font-mono); font-size: 12px; }
+.text-muted { color: var(--c-muted); }
+.text-right { text-align: right; }
+.flex-gap { display: flex; gap: 8px; align-items: center; }
+.loading { text-align: center; padding: 30px; color: var(--c-muted); }
+hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<div id="header">
+  <div>
+    <div class="logo">bits<span>Console</span></div>
+    <div class="subtitle" id="hdr-subtitle">Loading…</div>
+  </div>
+  <div class="spacer"></div>
+  <div id="auth-status">
+    <div class="dot" id="auth-dot"></div>
+    <span id="auth-label">Not authenticated</span>
+    <button class="btn" id="auth-btn" onclick="showAuthModal()">Connect</button>
+  </div>
+</div>
+
+<!-- ── Layout ─────────────────────────────────────────────────────────────── -->
+<div id="layout">
+
+  <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+  <nav id="sidebar">
+    <div class="nav-section">Overview</div>
+    <div class="nav-item active" onclick="nav('dashboard')" id="nav-dashboard">
+      <i class="icon">⬡</i> Dashboard
+    </div>
+
+    <div class="nav-section">Packages</div>
+    <div class="nav-item" onclick="nav('packages')" id="nav-packages">
+      <i class="icon">📦</i> Browse
+    </div>
+
+    <div class="nav-section">Operations</div>
+    <div class="nav-item" onclick="nav('builds')" id="nav-builds">
+      <i class="icon">🔨</i> Builds
+      <span id="running-badge" style="display:none; margin-left:auto; background:#0550ae;
+        color:#fff; border-radius:10px; font-size:10px; padding:1px 6px;"></span>
+    </div>
+    <div class="nav-item" onclick="nav('cvmfs')" id="nav-cvmfs">
+      <i class="icon">🗄</i> CVMFS Status
+    </div>
+
+    <div class="nav-section">Configuration</div>
+    <div class="nav-item" onclick="nav('settings')" id="nav-settings">
+      <i class="icon">⚙️</i> Settings
+    </div>
+
+    <div id="sidebar-footer">
+      <div id="repo-label" class="mono" style="color:#8b949e; font-size:11px;"></div>
+    </div>
+  </nav>
+
+  <!-- ── Main ───────────────────────────────────────────────────────────── -->
+  <main id="main">
+
+    <!-- Dashboard ─────────────────────────────────────────────────────── -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub" id="dash-sub">Loading configuration…</div>
+
+      <div class="cards" id="dash-cards">
+        <div class="card"><div class="card-label">Packages in repo</div><div class="card-value blue" id="stat-pkgs">—</div></div>
+        <div class="card"><div class="card-label">Published to CVMFS</div><div class="card-value green" id="stat-pub">—</div></div>
+        <div class="card"><div class="card-label">Active builds</div><div class="card-value orange" id="stat-active">—</div></div>
+        <div class="card"><div class="card-label">Failed (last 7 d)</div><div class="card-value red" id="stat-failed">—</div></div>
+      </div>
+
+      <div class="box">
+        <div class="box-header">
+          <span class="box-title">Recent workflow runs</span>
+          <button class="btn btn-outline btn-sm" onclick="loadDashboard()">↻ Refresh</button>
+        </div>
+        <div class="box-body">
+          <table id="runs-table">
+            <thead><tr>
+              <th>Status</th><th>Package</th><th>Platform</th>
+              <th>Started</th><th>Duration</th><th></th>
+            </tr></thead>
+            <tbody id="runs-tbody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Packages ──────────────────────────────────────────────────────── -->
+    <div class="tab-content" id="tab-packages">
+      <div class="page-title">Browse Packages</div>
+      <div class="page-sub">Select a package to build and publish to CVMFS.</div>
+
+      <div class="search-bar">
+        <input type="text" id="pkg-search" placeholder="Search packages…" oninput="filterPackages()">
+        <select id="pkg-filter-cvmfs" onchange="filterPackages()">
+          <option value="">All CVMFS statuses</option>
+          <option value="published">Published</option>
+          <option value="pending">Not published</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="loadPackages()">↻ Reload</button>
+        <span id="pkg-count" class="text-muted"></span>
+      </div>
+
+      <div class="box">
+        <div class="box-body">
+          <table>
+            <thead><tr>
+              <th>Package</th><th>Version</th><th>Source</th>
+              <th>Description</th><th>Patches</th><th>CVMFS</th><th></th>
+            </tr></thead>
+            <tbody id="pkg-tbody"><tr><td colspan="7" class="loading">Loading packages…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Builds ────────────────────────────────────────────────────────── -->
+    <div class="tab-content" id="tab-builds">
+      <div class="page-title">Build Runs</div>
+      <div class="page-sub">Active and recent build+publish pipeline runs.</div>
+
+      <div style="display:flex; gap:8px; margin-bottom:16px; align-items:center;">
+        <select id="build-filter" onchange="loadBuilds()">
+          <option value="">All statuses</option>
+          <option value="in_progress">Running</option>
+          <option value="failure">Failed</option>
+          <option value="success">Succeeded</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="loadBuilds()">↻ Refresh</button>
+        <span class="text-muted" id="build-last-refresh" style="font-size:12px;"></span>
+        <div class="spacer"></div>
+      </div>
+
+      <div id="builds-list"><div class="loading">Loading…</div></div>
+    </div>
+
+    <!-- CVMFS Status ──────────────────────────────────────────────────── -->
+    <div class="tab-content" id="tab-cvmfs">
+      <div class="page-title">CVMFS Migration Status</div>
+      <div class="page-sub" id="cvmfs-repo-label">Loading…</div>
+
+      <div style="margin-bottom:20px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span class="text-muted" style="font-size:12px;">Migration progress</span>
+          <span id="cvmfs-pct" style="font-size:12px; font-weight:600;"></span>
+        </div>
+        <div class="progress-wrap" style="height:12px;">
+          <div class="progress-bar" id="cvmfs-progress" style="width:0%"></div>
+        </div>
+        <div style="display:flex; gap:24px; margin-top:8px; font-size:12px; color:var(--c-muted);">
+          <span>✅ <span id="cvmfs-pub-count">0</span> published</span>
+          <span>⏳ <span id="cvmfs-pend-count">0</span> pending</span>
+          <span>❌ <span id="cvmfs-fail-count">0</span> failed</span>
+        </div>
+      </div>
+
+      <div class="search-bar">
+        <input type="text" id="cvmfs-search" placeholder="Filter packages…" oninput="filterCvmfs()">
+        <select id="cvmfs-filter-status" onchange="filterCvmfs()">
+          <option value="">All statuses</option>
+          <option value="published">Published</option>
+          <option value="pending">Pending</option>
+          <option value="failed">Failed</option>
+        </select>
+        <select id="cvmfs-filter-platform" onchange="filterCvmfs()">
+          <option value="">All platforms</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="loadCvmfsStatus()">↻ Refresh</button>
+      </div>
+
+      <div class="box">
+        <div class="box-body">
+          <table>
+            <thead><tr>
+              <th>Package</th><th>Version</th><th>Platform</th>
+              <th>CVMFS Path</th><th>Published</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody id="cvmfs-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings ──────────────────────────────────────────────────────── -->
+    <div class="tab-content" id="tab-settings">
+      <div class="page-title">Settings</div>
+      <div class="page-sub">Console configuration, provider selection, and connection status.</div>
+
+      <!-- Authentication -->
+      <div class="settings-section">
+        <h3>Authentication</h3>
+        <div id="settings-auth-info"></div>
+        <button class="btn btn-outline" onclick="showAuthModal()" style="margin-top:8px;">
+          Change token
+        </button>
+      </div>
+
+      <!-- Console repository (editable when running locally) -->
+      <div class="settings-section">
+        <h3>Console repository</h3>
+        <table class="kv-table" id="settings-repo"></table>
+        <div id="settings-repo-edit" style="display:none; margin-top:12px;">
+          <div class="alert alert-info" style="margin-bottom:12px;">
+            Running locally — enter the GitHub repository where your
+            <code>ui-config.yaml</code> and workflows are stored.
+          </div>
+          <div style="display:flex; gap:8px; align-items:flex-end;">
+            <div class="form-row" style="margin:0; flex:1;">
+              <label>Owner (org or user)</label>
+              <input type="text" id="settings-owner" placeholder="myorg">
+            </div>
+            <div class="form-row" style="margin:0; flex:1;">
+              <label>Repository</label>
+              <input type="text" id="settings-repo-name" placeholder="bits-console">
+            </div>
+            <button class="btn btn-primary" onclick="applyRepoFromSettings()">Apply</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recipe providers -->
+      <div class="settings-section">
+        <h3>Recipe providers</h3>
+        <p style="font-size:13px;color:var(--c-muted);margin-bottom:12px;">
+          Select the recipe repositories to browse in the Packages tab.
+          The list is fetched from
+          <a href="https://github.com/bitsorg/bits-providers" target="_blank">bitsorg/bits-providers</a>.
+          Changes take effect immediately and are remembered for this session.
+        </p>
+        <div id="provider-summary" class="alert alert-warn">Loading providers…</div>
+        <div class="box" style="margin-bottom:16px;">
+          <div class="box-header" style="padding:8px 14px;">
+            <span class="box-title" style="font-size:13px;">Available providers</span>
+            <button class="btn btn-outline btn-sm" onclick="loadProviders()">↻ Refresh registry</button>
+          </div>
+          <div id="provider-list"><div class="loading">Loading…</div></div>
+        </div>
+
+        <!-- Manual addition for repos not yet in the registry -->
+        <details style="font-size:13px;">
+          <summary style="cursor:pointer;color:var(--c-info);margin-bottom:8px;">
+            Add a repository not in the registry
+          </summary>
+          <div style="display:flex;gap:8px;align-items:flex-end;margin-top:8px;">
+            <div class="form-row" style="margin:0;flex:1;">
+              <label>Owner</label>
+              <input type="text" id="manual-owner" placeholder="myorg">
+            </div>
+            <div class="form-row" style="margin:0;flex:1;">
+              <label>Repo</label>
+              <input type="text" id="manual-repo" placeholder="myrecipes.bits">
+            </div>
+            <div class="form-row" style="margin:0;width:110px;">
+              <label>Branch</label>
+              <input type="text" id="manual-branch" placeholder="main" value="main">
+            </div>
+            <button class="btn btn-outline" onclick="addManualProvider()">Add</button>
+          </div>
+        </details>
+      </div>
+
+      <!-- ui-config.yaml -->
+      <div class="settings-section">
+        <h3>ui-config.yaml</h3>
+        <div id="settings-config-raw"></div>
+      </div>
+
+      <!-- Secrets reference -->
+      <div class="settings-section">
+        <h3>Workflow secrets required</h3>
+        <div class="alert alert-info">
+          Configure these in <strong>Settings → Secrets and variables → Actions</strong>
+          in the repository.
+        </div>
+        <table class="kv-table">
+          <tr><td>SPOOL_SSH_KEY</td><td>SSH private key for rsync to the ingestion host</td></tr>
+          <tr><td>SPOOL_USER</td><td>SSH username on the ingestion host</td></tr>
+          <tr><td>SPOOL_HOST</td><td>Ingestion host address</td></tr>
+          <tr><td>SPOOL_PATH</td><td>Absolute spool root path on the ingestion host</td></tr>
+          <tr><td>CVMFS_REPO</td><td>CVMFS repository name (e.g. <code>sft.cern.ch</code>)</td></tr>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Auth modal ─────────────────────────────────────────────────────────── -->
+<div class="modal-bg hidden" id="auth-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Connect to GitHub</h3>
+      <button class="close-btn" onclick="hideModal('auth-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info">
+        A GitHub <strong>Personal Access Token</strong> with
+        <code>repo</code> and <code>workflow</code> scopes is required to
+        browse packages, trigger builds, and view logs.
+        The token is stored in <code>sessionStorage</code> only and cleared
+        when you close the browser tab.
+      </div>
+      <div class="form-row">
+        <label>Personal Access Token</label>
+        <input type="password" id="token-input" placeholder="ghp_…"
+               autocomplete="off" onkeydown="if(event.key==='Enter') saveToken()">
+        <div class="form-hint">
+          <a href="https://github.com/settings/tokens/new?scopes=repo,workflow"
+             target="_blank">Generate a new token ↗</a>
+        </div>
+      </div>
+      <div id="auth-modal-error" class="alert alert-error" style="display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="hideModal('auth-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveToken()">Connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Repo setup modal (local dev) ──────────────────────────────────────── -->
+<div class="modal-bg hidden" id="repo-setup-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Connect to your bits-console repository</h3>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info">
+        This console is running locally.  Enter the GitHub repository
+        where your <code>ui-config.yaml</code>, workflows, and
+        <code>cvmfs-status.json</code> are stored.
+      </div>
+      <div class="form-row">
+        <label>GitHub owner (org or user)</label>
+        <input type="text" id="setup-owner" placeholder="myorg"
+               onkeydown="if(event.key==='Enter') setRepo()">
+      </div>
+      <div class="form-row">
+        <label>Repository name</label>
+        <input type="text" id="setup-repo" placeholder="bits-console" value="bits-console"
+               onkeydown="if(event.key==='Enter') setRepo()">
+      </div>
+      <div id="setup-error" class="alert alert-error" style="display:none;">
+        Both owner and repository are required.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="setRepo()">Connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Build trigger modal ────────────────────────────────────────────────── -->
+<div class="modal-bg hidden" id="build-modal" style="align-items:flex-start; padding-top:32px;">
+  <div class="modal" style="width:560px;">
+    <div class="modal-header">
+      <h3>Trigger Build &amp; Publish</h3>
+      <button class="close-btn" onclick="hideModal('build-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Core options -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+        <div class="form-row">
+          <label>Package</label>
+          <input type="text" id="bm-package" readonly>
+        </div>
+        <div class="form-row">
+          <label>Version <span style="font-weight:400;color:var(--c-muted);">(blank = latest)</span></label>
+          <input type="text" id="bm-version" placeholder="e.g. 20230802.1-1">
+          <div class="form-hint">Override the version from the recipe.</div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Platform</label>
+        <select id="bm-platform" onchange="updateCvmfsTarget()"></select>
+      </div>
+
+      <div class="form-row">
+        <label>CVMFS target path</label>
+        <input type="text" id="bm-cvmfs-target">
+        <div class="form-hint">Final absolute install path on CVMFS.</div>
+      </div>
+
+      <div style="display:flex; gap:16px; margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="bm-rebuild" style="width:auto;">
+          Force rebuild
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="bm-no-deps" style="width:auto;">
+          Skip dependencies
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="bm-debug" style="width:auto;">
+          Debug output
+        </label>
+      </div>
+
+      <!-- Advanced options -->
+      <details id="bm-advanced">
+        <summary style="cursor:pointer; font-size:13px; color:var(--c-info);
+                        margin-bottom:10px; user-select:none;">
+          Advanced build options
+        </summary>
+        <div style="border:1px solid var(--c-border); border-radius:var(--radius);
+                    padding:14px; margin-top:4px; background:#fafbfc;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+            <div class="form-row">
+              <label>Architecture override</label>
+              <input type="text" id="bm-arch" placeholder="auto (from platform)">
+              <div class="form-hint">Leave blank to use the runner default.</div>
+            </div>
+            <div class="form-row">
+              <label>Parallel jobs <code>-j</code></label>
+              <input type="number" id="bm-jobs" value="0" min="0" max="256">
+              <div class="form-hint">0 = auto-detect from <code>nproc</code>.</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Config directory <code>--config-dir</code></label>
+            <input type="text" id="bm-config-dir" placeholder="auto (from provider, e.g. cern-sis/lcg.bits)">
+            <div class="form-hint">
+              GitHub repo (<code>owner/repo</code>) containing the recipes.
+              Overrides the <code>BITS_CONFIG_REPO</code> variable.
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom:0;">
+            <label>Extra build arguments</label>
+            <input type="text" id="bm-extra-args" placeholder="e.g. --flag value --other">
+            <div class="form-hint">Appended verbatim after all other flags.</div>
+          </div>
+        </div>
+      </details>
+
+      <div id="bm-error" class="alert alert-error" style="display:none; margin-top:12px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="hideModal('build-modal')">Cancel</button>
+      <button class="btn btn-primary" id="bm-submit" onclick="triggerBuild()">
+        🔨 Trigger Build
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Package detail modal ───────────────────────────────────────────────── -->
+<div class="modal-bg hidden" id="pkg-detail-modal" style="align-items:flex-start; padding-top:32px;">
+  <div class="modal" style="width:780px; max-height:88vh;">
+    <div class="modal-header">
+      <div style="flex:1;">
+        <h3 id="pd-title" style="margin-bottom:2px;">Package</h3>
+        <div id="pd-subtitle" style="font-size:12px; color:var(--c-muted); font-weight:400;"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" id="pd-build-btn"
+              onclick="buildFromDetail()" style="margin-right:8px;">
+        🔨 Build &amp; Publish
+      </button>
+      <button class="close-btn" onclick="hideModal('pkg-detail-modal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px;">
+
+      <!-- Metadata grid -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+        <div>
+          <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
+                      letter-spacing:.6px; margin-bottom:8px;">Package info</div>
+          <table class="kv-table" id="pd-meta-table"></table>
+        </div>
+        <div>
+          <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
+                      letter-spacing:.6px; margin-bottom:8px;">Build settings</div>
+          <table class="kv-table" id="pd-build-table"></table>
+        </div>
+      </div>
+
+      <!-- Patches -->
+      <div id="pd-patches-section" style="display:none; margin-bottom:20px;">
+        <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
+                    letter-spacing:.6px; margin-bottom:8px;">Patches</div>
+        <div id="pd-patches"></div>
+      </div>
+
+      <!-- Build history -->
+      <div>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
+                      letter-spacing:.6px; flex:1;">Build history</div>
+          <button class="btn btn-outline btn-sm" onclick="refreshPackageHistory()">↻ Refresh</button>
+        </div>
+        <div id="pd-history"><div class="loading">Loading…</div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Log viewer modal ───────────────────────────────────────────────────── -->
+<div class="modal-bg hidden" id="log-modal" style="align-items:flex-start; padding-top:40px;">
+  <div class="modal" style="width:760px; max-height:80vh;">
+    <div class="modal-header">
+      <h3 id="log-modal-title">Build log</h3>
+      <button class="close-btn" onclick="hideModal('log-modal'); stopLogPoll()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:12px;">
+      <div id="log-job-pipeline"></div>
+      <div id="log-viewer" style="height:460px; background:#0d1117; color:#c9d1d9;
+           font-family:var(--font-mono); font-size:12px; padding:16px;
+           border-radius:var(--radius); overflow-y:auto; white-space:pre-wrap;
+           word-break:break-all; border:1px solid #30363d;">
+        Loading log…
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="hideModal('log-modal'); stopLogPoll()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────────────
+const State = {
+  token:           sessionStorage.getItem('gh_token') || '',
+  owner:           '',
+  repo:            '',
+  config:          null,   // parsed ui-config.yaml
+  packages:        [],     // [{name, version, description, patches, cvmfsStatus, _source}]
+  cvmfsStatus:     [],     // from cvmfs-status.json
+  providers:       [],     // all providers from bitsorg/bits-providers registry.json
+  activeProviders: [],     // currently selected [{owner, repo, branch, name}]
+  buildPollTimer:  null,
+  logPollTimer:    null,
+  currentRunId:    null,
+};
+
+// ── GitHub API ─────────────────────────────────────────────────────────────
+async function ghFetch(path, opts = {}) {
+  const url = `https://api.github.com${path}`;
+  const headers = {
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+  if (State.token) headers['Authorization'] = `Bearer ${State.token}`;
+  const res = await fetch(url, { ...opts, headers: { ...headers, ...opts.headers } });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`GitHub API ${res.status}: ${body.message || res.statusText}`);
+  }
+  // Some endpoints return no body (204)
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('json') ? res.json() : res.text();
+}
+
+async function ghGet(path)          { return ghFetch(path); }
+async function ghPost(path, body)   { return ghFetch(path, { method: 'POST',   body: JSON.stringify(body) }); }
+async function ghDelete(path)       { return ghFetch(path, { method: 'DELETE' }); }
+
+// ── Repo detection ─────────────────────────────────────────────────────────
+function detectRepo() {
+  // GitHub Pages URLs: {owner}.github.io/{repo}/ or custom domain
+  const { hostname, pathname } = window.location;
+  const ghMatch = hostname.match(/^(.+)\.github\.io$/);
+  if (ghMatch) {
+    State.owner = ghMatch[1];
+    const seg = pathname.split('/').filter(Boolean)[0];
+    State.repo = seg || ghMatch[1] + '.github.io';
+  } else {
+    // Local dev / custom domain: read from sessionStorage (set by repo-setup modal)
+    State.owner = sessionStorage.getItem('bits_owner') || '';
+    State.repo  = sessionStorage.getItem('bits_repo')  || '';
+  }
+}
+
+// ── YAML micro-parser (only key: value and simple lists) ──────────────────
+function parseSimpleYaml(text) {
+  const out = {}; let curKey = null; let curList = null;
+  for (const raw of text.split('\n')) {
+    const line = raw.replace(/#.*$/, '').trimEnd();
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+    const listItem = line.match(/^(\s+)-\s+(.+)$/);
+    if (listItem && curKey) { curList = curList || []; curList.push(listItem[2].trim()); out[curKey] = curList; continue; }
+    const kv = line.match(/^([a-z_A-Z][a-z_A-Z0-9]*)\s*:\s*(.*)$/);
+    if (kv) { curKey = kv[1]; curList = null; const v = kv[2].trim().replace(/^['"]|['"]$/g, ''); out[curKey] = v || null; }
+  }
+  return out;
+}
+
+// ── Load ui-config.yaml ────────────────────────────────────────────────────
+async function loadConfig() {
+  if (!State.owner || !State.repo) {
+    // No repo known yet (local dev without sessionStorage) — ask the user.
+    showModal('repo-setup-modal');
+    return;
+  }
+  try {
+    const data = await ghGet(`/repos/${State.owner}/${State.repo}/contents/ui-config.yaml`);
+    const text = atob(data.content.replace(/\n/g,''));
+    State.config = parseSimpleYaml(text);
+    if (State.config.owner) State.owner = State.config.owner;
+    if (State.config.repo)  State.repo  = State.config.repo;
+  } catch(e) {
+    State.config = {
+      title: 'bits Console', subtitle: 'Configure ui-config.yaml',
+      cvmfs_repo: '', cvmfs_prefix: '',
+      platforms: ['x86_64-el9'], publish_workflow: 'cvmfs-publish.yml',
+      recipe_repos: [],
+    };
+  }
+  initActiveProviders();
+  applyConfig();
+}
+
+// ── Repo setup (local dev) ─────────────────────────────────────────────────
+function setRepo() {
+  const owner = el('setup-owner').value.trim();
+  const repo  = el('setup-repo').value.trim();
+  if (!owner || !repo) { el('setup-error').style.display = 'block'; return; }
+  el('setup-error').style.display = 'none';
+  sessionStorage.setItem('bits_owner', owner);
+  sessionStorage.setItem('bits_repo',  repo);
+  State.owner = owner;
+  State.repo  = repo;
+  hideModal('repo-setup-modal');
+  refreshAll();
+}
+
+// ── Provider management ────────────────────────────────────────────────────
+function initActiveProviders() {
+  // Session selection overrides config (persists until tab is closed).
+  const saved = sessionStorage.getItem('bits_active_providers');
+  if (saved) {
+    try { State.activeProviders = JSON.parse(saved); return; } catch {}
+  }
+  // Seed from recipe_repos in ui-config.yaml.
+  const repos = Array.isArray((State.config || {}).recipe_repos)
+    ? State.config.recipe_repos : [];
+  State.activeProviders = repos.map(r =>
+    typeof r === 'object' ? r : { owner: State.owner, repo: r, branch: 'main' }
+  );
+}
+
+async function loadProviders() {
+  try {
+    // Fetch the central registry from bitsorg/bits-providers.
+    // This is a public repo; no auth needed.
+    const data = await ghGet('/repos/bitsorg/bits-providers/contents/registry.json');
+    const text = atob(data.content.replace(/\n/g,''));
+    State.providers = JSON.parse(text);
+  } catch(e) {
+    console.warn('Could not load provider registry:', e.message);
+    State.providers = [];
+  }
+  renderProviders();
+}
+
+function isProviderActive(p) {
+  return State.activeProviders.some(a => a.owner === p.owner && a.repo === p.repo);
+}
+
+function toggleProvider(owner, repo, branch, name, checked) {
+  if (checked) {
+    if (!isProviderActive({ owner, repo }))
+      State.activeProviders.push({ owner, repo, branch: branch || 'main', name });
+  } else {
+    State.activeProviders = State.activeProviders.filter(
+      a => !(a.owner === owner && a.repo === repo)
+    );
+  }
+  sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
+  renderProviderSummary();
+}
+
+function renderProviders() {
+  const list = el('provider-list');
+  if (!list) return;
+  if (!State.providers.length) {
+    list.innerHTML = '<div class="alert alert-warn" style="margin:0;">Provider registry unavailable — check network or add repos manually below.</div>';
+    renderProviderSummary(); return;
+  }
+  list.innerHTML = State.providers.map(p => {
+    const active  = isProviderActive(p);
+    const tags    = (p.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+    const safeId  = esc(p.id || `${p.owner}/${p.repo}`);
+    return `<label class="provider-row" style="display:flex;align-items:flex-start;gap:10px;
+        padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--c-border);">
+      <input type="checkbox" style="margin-top:3px;width:auto;"
+        ${active ? 'checked' : ''}
+        onchange="toggleProvider('${esc(p.owner)}','${esc(p.repo)}','${esc(p.branch||'main')}','${esc(p.name||p.repo)}',this.checked)">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;">
+          ${esc(p.name || p.repo)}
+          <span class="mono text-muted" style="font-weight:400;font-size:11px;margin-left:6px;">${esc(p.owner)}/${esc(p.repo)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--c-muted);margin-top:2px;">${esc(p.description||'')}</div>
+        <div style="margin-top:4px;">${tags}</div>
+      </div>
+      ${p.homepage ? `<a href="${esc(p.homepage)}" target="_blank" style="font-size:11px;color:var(--c-info);white-space:nowrap;">GitHub ↗</a>` : ''}
+    </label>`;
+  }).join('');
+  renderProviderSummary();
+}
+
+function renderProviderSummary() {
+  const el2 = el('provider-summary');
+  if (!el2) return;
+  const n = State.activeProviders.length;
+  el2.textContent = n
+    ? `${n} provider${n>1?'s':''} active — packages from: ${State.activeProviders.map(p=>p.name||p.repo).join(', ')}`
+    : 'No providers selected — the Packages tab will be empty.';
+  el2.className = n ? 'alert alert-ok' : 'alert alert-warn';
+}
+
+function applyConfig() {
+  const c = State.config;
+  document.title = c.title || 'bits Console';
+  const sub = c.subtitle || (State.owner + '/' + State.repo);
+  el('hdr-subtitle').textContent = sub;
+  el('dash-sub').textContent = `${c.title || 'bits Console'} — ${sub}`;
+  el('repo-label').textContent = `${State.owner}/${State.repo}`;
+  el('cvmfs-repo-label').textContent = `CVMFS repository: ${c.cvmfs_repo || '—'}`;
+  // Populate platform filter in CVMFS tab
+  const pSel = el('cvmfs-filter-platform');
+  pSel.innerHTML = '<option value="">All platforms</option>';
+  const platforms = Array.isArray(c.platforms) ? c.platforms : [c.platforms].filter(Boolean);
+  platforms.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; pSel.appendChild(o); });
+  renderSettings();
+}
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+function showAuthModal() {
+  el('token-input').value = State.token;
+  el('auth-modal-error').style.display = 'none';
+  showModal('auth-modal');
+  setTimeout(() => el('token-input').focus(), 100);
+}
+
+async function saveToken() {
+  const tok = el('token-input').value.trim();
+  if (!tok) return;
+  try {
+    // Validate token by fetching user info
+    const headers = { 'Authorization': `Bearer ${tok}`, 'Accept': 'application/vnd.github+json' };
+    const res = await fetch('https://api.github.com/user', { headers });
+    if (!res.ok) throw new Error('Invalid token or insufficient permissions');
+    const user = await res.json();
+    State.token = tok;
+    sessionStorage.setItem('gh_token', tok);
+    hideModal('auth-modal');
+    setAuthStatus(true, user.login);
+    refreshAll();
+  } catch(e) {
+    el('auth-modal-error').textContent = e.message;
+    el('auth-modal-error').style.display = 'block';
+  }
+}
+
+function setAuthStatus(ok, label = '') {
+  el('auth-dot').className = 'dot ' + (ok ? 'ok' : 'err');
+  el('auth-label').textContent = ok ? label : 'Not authenticated';
+  el('auth-btn').textContent = ok ? 'Change' : 'Connect';
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function nav(tab) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el('tab-' + tab).classList.add('active');
+  el('nav-' + tab).classList.add('active');
+  if (tab === 'dashboard') loadDashboard();
+  if (tab === 'packages')  loadPackages();
+  if (tab === 'builds')    { loadBuilds(); startBuildPoll(); }
+  if (tab === 'cvmfs')     loadCvmfsStatus();
+  if (tab === 'settings')  renderSettings();
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const [runs, cvmfs] = await Promise.all([
+      ghGet(`/repos/${State.owner}/${State.repo}/actions/runs?per_page=20`),
+      loadCvmfsStatusData(),
+    ]);
+    const runList = runs.workflow_runs || [];
+    const active  = runList.filter(r => r.status === 'in_progress').length;
+    const failed  = runList.filter(r => r.conclusion === 'failure').length;
+    el('stat-active').textContent = active;
+    el('stat-failed').textContent = failed;
+    el('stat-pub').textContent    = cvmfs.filter(p => p.status === 'published').length;
+    el('stat-pkgs').textContent   = State.packages.length || '—';
+    updateRunningBadge(active);
+    renderRunsTable(runList.slice(0, 10));
+  } catch(e) { showFetchError('dash-sub', e); }
+}
+
+function renderRunsTable(runs) {
+  const tbody = el('runs-tbody');
+  if (!runs.length) { tbody.innerHTML = '<tr><td colspan="6" class="loading">No runs found.</td></tr>'; return; }
+  tbody.innerHTML = runs.map(r => {
+    const pkg  = (r.display_title || r.name || '').replace('CVMFS Publish', '').trim() || '—';
+    const plat = extractPlatform(r);
+    const dur  = r.run_started_at && r.updated_at ? formatDuration(r.run_started_at, r.updated_at) : '—';
+    return `<tr>
+      <td>${statusBadge(r.status, r.conclusion)}</td>
+      <td>${esc(pkg)}</td>
+      <td><span class="mono">${esc(plat)}</span></td>
+      <td>${formatTime(r.run_started_at)}</td>
+      <td>${dur}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="openLog(${r.id},'${esc(r.display_title||r.name||'')}')">Logs</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Packages ───────────────────────────────────────────────────────────────
+async function loadPackages() {
+  el('pkg-tbody').innerHTML = '<tr><td colspan="7" class="loading">Fetching package list…</td></tr>';
+  try {
+    const recipes = await getRecipeRepos();
+    State.packages = recipes;
+    el('stat-pkgs').textContent = recipes.length;
+    await loadCvmfsStatusData();
+    filterPackages();
+  } catch(e) {
+    el('pkg-tbody').innerHTML = `<tr><td colspan="7"><div class="alert alert-error">${esc(e.message)}</div></td></tr>`;
+  }
+}
+
+async function getRecipeRepos() {
+  const repoList = State.activeProviders;
+  if (!repoList.length) {
+    el('pkg-tbody').innerHTML = `<tr><td colspan="7"><div class="alert alert-warn" style="margin:0;">
+      No recipe repositories selected.
+      <a href="#" onclick="nav('settings');return false;">Open Settings → Providers</a>
+      to select from the registry or add a repository manually.
+    </div></td></tr>`;
+    return [];
+  }
+  const all = [];
+  for (const rr of repoList) {
+    const owner  = rr.owner  || State.owner;
+    const repo   = rr.repo;
+    const branch = rr.branch || 'main';
+    const label  = rr.name   || `${owner}/${repo}`;
+    if (!repo) continue;
+    try {
+      const tree = await ghGet(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+      const shFiles = (tree.tree || []).filter(f => f.type === 'blob' && f.path.match(/^[^/]+\.sh$/));
+      const batch = 30;
+      for (let i = 0; i < Math.min(shFiles.length, 300); i += batch) {
+        const chunk = shFiles.slice(i, i + batch);
+        const parsed = await Promise.all(chunk.map(f => fetchRecipe(owner, repo, f.path)));
+        all.push(...parsed.filter(Boolean).map(p => ({ ...p, _source: label })));
+      }
+    } catch(e) { console.warn('recipe repo error:', rr, e.message); }
+  }
+  return all.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function fetchRecipe(owner, repo, path) {
+  try {
+    const data = await ghGet(`/repos/${owner}/${repo}/contents/${path}`);
+    const text = atob(data.content.replace(/\n/g,''));
+    return parseRecipe(text, path);
+  } catch { return null; }
+}
+
+function parseRecipe(text, path) {
+  const name = path.replace(/^.*\//, '').replace(/\.sh$/, '');
+  const yaml = text.split(/^---\s*$/m)[0] || '';
+  const fields = parseSimpleYaml(yaml);
+
+  // Collect all list-valued fields (patches, requires, etc.)
+  const lists = {};
+  let curKey = null;
+  for (const raw of yaml.split('\n')) {
+    const item = raw.match(/^(\s+)-\s+(.+)$/);
+    if (item && curKey) { (lists[curKey] = lists[curKey] || []).push(item[2].trim()); continue; }
+    const kv = raw.match(/^([a-zA-Z_][a-zA-Z_0-9]*)\s*:/);
+    curKey = kv ? kv[1] : null;
+  }
+
+  const patches = lists.patches || [];
+  const requires = lists.requires || [];
+
+  return {
+    name:        fields.package || name,
+    version:     (fields.version || '—').replace(/^["']|["']$/g,''),
+    description: fields.description || '',
+    homepage:    fields.homepage   || '',
+    label:       fields.label      || '',
+    patches,
+    requires,
+    fields,      // full parsed YAML for the detail view
+    cvmfsStatus: 'pending',
+    _path: path,
+    _rawYaml: yaml,
+  };
+}
+
+function filterPackages() {
+  const q      = el('pkg-search').value.toLowerCase();
+  const cvmfsF = el('pkg-filter-cvmfs').value;
+  const rows   = State.packages.filter(p => {
+    if (q && !p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
+    if (cvmfsF === 'published' && p.cvmfsStatus !== 'published') return false;
+    if (cvmfsF === 'pending'   && p.cvmfsStatus === 'published') return false;
+    return true;
+  });
+  el('pkg-count').textContent = `${rows.length} package${rows.length !== 1 ? 's' : ''}`;
+  const tbody = el('pkg-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty"><div>No packages match.</div></td></tr>'; return; }
+  tbody.innerHTML = rows.map(p => `
+    <tr class="pkg-row">
+      <td>
+        <a href="#" class="pkg-link" onclick="showPackageDetail('${esc(p.name)}');return false;"
+           style="font-family:var(--font-mono);font-size:12px;font-weight:600;
+                  color:var(--c-info);text-decoration:none;">
+          ${esc(p.name)}
+        </a>
+      </td>
+      <td><span class="pkg-version">${esc(p.version)}</span></td>
+      <td><span class="tag" style="background:#f0f7ff;color:#0550ae;">${esc(p._source||'')}</span></td>
+      <td><span class="pkg-desc" title="${esc(p.description)}">${esc(p.description)}</span></td>
+      <td>${p.patches.length ? `<span class="badge badge-success">${p.patches.length} patch${p.patches.length>1?'es':''}</span>` : '<span class="text-muted">—</span>'}</td>
+      <td>${cvmfsStatusBadge(p.cvmfsStatus)}</td>
+      <td><button class="btn btn-primary btn-sm" onclick="showBuildModal('${esc(p.name)}','${esc(p.version)}')">Build &amp; Publish</button></td>
+    </tr>`).join('');
+}
+
+// ── Build modal ────────────────────────────────────────────────────────────
+function showBuildModal(pkg, version, opts = {}) {
+  if (!State.token) { showAuthModal(); return; }
+  el('bm-package').value  = pkg;
+  el('bm-version').value  = version === '—' ? '' : (version || '');
+  // Core checkboxes
+  el('bm-rebuild').checked  = opts.rebuild  || false;
+  el('bm-no-deps').checked  = opts.no_deps  || false;
+  el('bm-debug').checked    = opts.debug    || false;
+  // Advanced fields
+  el('bm-arch').value       = opts.architecture || '';
+  el('bm-jobs').value       = opts.jobs         || '0';
+  el('bm-config-dir').value = opts.config_dir   || '';
+  el('bm-extra-args').value = opts.extra_args   || '';
+  // Collapse advanced section by default
+  el('bm-advanced').open    = false;
+  el('bm-error').style.display = 'none';
+  el('bm-submit').disabled  = false;
+  el('bm-submit').textContent = '🔨 Trigger Build';
+  // Populate platforms
+  const pSel = el('bm-platform');
+  pSel.innerHTML = '';
+  getPlatforms().forEach(p => {
+    const o = document.createElement('option');
+    o.value = p; o.textContent = p; pSel.appendChild(o);
+  });
+  updateCvmfsTarget();
+  showModal('build-modal');
+}
+
+function updateCvmfsTarget() {
+  const c      = State.config || {};
+  const prefix = c.cvmfs_prefix || '/cvmfs/sft.cern.ch/lcg/releases';
+  const pkg    = el('bm-package').value;
+  const ver    = el('bm-version').value;
+  const plat   = el('bm-platform').value;
+  el('bm-cvmfs-target').value = `${prefix}/${pkg}/${ver}/${plat}`;
+}
+
+async function triggerBuild() {
+  const pkg        = el('bm-package').value.trim();
+  const ver        = el('bm-version').value.trim();
+  const plat       = el('bm-platform').value;
+  const target     = el('bm-cvmfs-target').value.trim();
+  const rebuild    = el('bm-rebuild').checked;
+  const no_deps    = el('bm-no-deps').checked;
+  const debug      = el('bm-debug').checked;
+  const arch       = el('bm-arch').value.trim();
+  const jobs       = el('bm-jobs').value.trim() || '0';
+  const config_dir = el('bm-config-dir').value.trim();
+  const extra_args = el('bm-extra-args').value.trim();
+  const wf         = (State.config || {}).publish_workflow || 'cvmfs-publish.yml';
+
+  if (!pkg)    { showBmError('Package name is required.'); return; }
+  if (!target) { showBmError('CVMFS target path is required.'); return; }
+
+  el('bm-submit').disabled    = true;
+  el('bm-submit').textContent = 'Triggering…';
+  try {
+    await ghPost(
+      `/repos/${State.owner}/${State.repo}/actions/workflows/${wf}/dispatches`,
+      { ref: 'main', inputs: {
+          package:          pkg,
+          version:          ver,
+          platform:         plat,
+          cvmfs_target:     target,
+          rebuild:          String(rebuild),
+          no_deps:          String(no_deps),
+          debug:            String(debug),
+          architecture:     arch,
+          jobs:             jobs,
+          config_dir:       config_dir,
+          extra_build_args: extra_args,
+        }
+      }
+    );
+    hideModal('build-modal');
+    // Also close detail modal if it was open
+    hideModal('pkg-detail-modal');
+    nav('builds');
+    setTimeout(loadBuilds, 2000);
+  } catch(e) {
+    showBmError(e.message);
+    el('bm-submit').disabled    = false;
+    el('bm-submit').textContent = '🔨 Trigger Build';
+  }
+}
+
+function showBmError(msg) { el('bm-error').textContent = msg; el('bm-error').style.display = 'block'; }
+
+// ── Package detail modal ────────────────────────────────────────────────────
+function showPackageDetail(pkgName) {
+  const pkg = State.packages.find(p => p.name === pkgName);
+  if (!pkg) return;
+  State._detailPkg = pkg;
+
+  el('pd-title').textContent    = pkg.name;
+  el('pd-subtitle').textContent = `${pkg._source || ''} • ${pkg._path || ''}`;
+  el('pd-build-btn').onclick    = () => buildFromDetail();
+
+  // Metadata table
+  const skipKeys = new Set(['package', 'version', 'description', 'patches', 'requires']);
+  const metaRows = [
+    ['Version',     `<span class="mono">${esc(pkg.version)}</span>`],
+    ['Source',      `<span class="tag" style="background:#f0f7ff;color:#0550ae;">${esc(pkg._source||'')}</span>`],
+    ['CVMFS',       cvmfsStatusBadge(pkg.cvmfsStatus)],
+    ['Description', esc(pkg.description) || '<span class="text-muted">—</span>'],
+    pkg.homepage ? ['Homepage', `<a href="${esc(pkg.homepage)}" target="_blank">${esc(pkg.homepage)}</a>`] : null,
+    pkg.label    ? ['Label',    esc(pkg.label)]    : null,
+  ].filter(Boolean);
+  el('pd-meta-table').innerHTML = metaRows.map(([k,v]) =>
+    `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+
+  // Extra YAML fields in the build settings column
+  const extraFields = Object.entries(pkg.fields || {}).filter(([k]) => !skipKeys.has(k));
+  el('pd-build-table').innerHTML = extraFields.length
+    ? extraFields.map(([k,v]) => `<tr><td>${esc(k)}</td><td><span class="mono" style="font-size:11px;">${esc(String(v))}</span></td></tr>`).join('')
+    : '<tr><td colspan="2" class="text-muted">No additional fields</td></tr>';
+
+  // Patches
+  const pSection = el('pd-patches-section');
+  if (pkg.patches.length) {
+    pSection.style.display = 'block';
+    el('pd-patches').innerHTML = pkg.patches.map(p =>
+      `<span class="tag" style="margin-bottom:4px;display:inline-block;">${esc(p)}</span>`
+    ).join(' ');
+  } else {
+    pSection.style.display = 'none';
+  }
+
+  showModal('pkg-detail-modal');
+  loadPackageBuildHistory(pkg.name);
+}
+
+function buildFromDetail() {
+  const pkg = State._detailPkg;
+  if (!pkg) return;
+  showBuildModal(pkg.name, pkg.version);
+}
+
+function refreshPackageHistory() {
+  if (State._detailPkg) loadPackageBuildHistory(State._detailPkg.name);
+}
+
+async function loadPackageBuildHistory(pkgName) {
+  el('pd-history').innerHTML = '<div class="loading">Loading build history…</div>';
+  try {
+    // Fetch all runs for the publish workflow and filter client-side.
+    const wf   = (State.config || {}).publish_workflow || 'cvmfs-publish.yml';
+    const data = await ghGet(
+      `/repos/${State.owner}/${State.repo}/actions/workflows/${encodeURIComponent(wf)}/runs?per_page=100`
+    );
+    const runs = (data.workflow_runs || []).filter(r => {
+      const title = (r.display_title || r.name || '').toLowerCase();
+      return title.includes(pkgName.toLowerCase());
+    });
+
+    if (!runs.length) {
+      el('pd-history').innerHTML = '<div class="empty" style="padding:20px;"><p>No builds found for this package.</p></div>';
+      return;
+    }
+
+    el('pd-history').innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Status</th><th>Platform</th><th>Version</th>
+          <th>Started</th><th>Duration</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${runs.map(r => {
+            const plat = extractPlatformFromRun(r);
+            const ver  = extractVersionFromRun(r);
+            const dur  = r.run_started_at ? formatDuration(r.run_started_at, r.updated_at || new Date().toISOString()) : '—';
+            const isRunning = r.status === 'in_progress';
+            return `<tr>
+              <td>${statusBadge(r.status, r.conclusion)}</td>
+              <td><span class="mono">${esc(plat)}</span></td>
+              <td><span class="mono">${esc(ver)}</span></td>
+              <td>${formatTime(r.run_started_at)}</td>
+              <td>${dur}</td>
+              <td style="display:flex;gap:4px;">
+                <button class="btn btn-outline btn-sm"
+                  onclick="openLog(${r.id},'${esc(pkgName)}')">Logs</button>
+                ${isRunning
+                  ? `<button class="btn btn-danger btn-sm" onclick="cancelRun(${r.id})">Cancel</button>`
+                  : `<button class="btn btn-outline btn-sm"
+                       onclick="reBuildFromHistory('${esc(pkgName)}','${esc(ver)}','${esc(plat)}')">
+                       ↺ Rebuild</button>`
+                }
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    el('pd-history').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+  }
+}
+
+function extractPlatformFromRun(run) {
+  // Workflow run inputs aren't directly available via the runs API; fall back
+  // to parsing the display_title which the workflow sets.
+  const m = (run.display_title || run.name || '').match(/\(([^)]+)\)$/);
+  return m ? m[1] : (run.head_branch || '—');
+}
+
+function extractVersionFromRun(run) {
+  // Try to extract version from the run title: "package version (platform)"
+  const title = (run.display_title || run.name || '');
+  const parts = title.split(' ');
+  // Title format from workflow: "Build & stage — <pkg> (<platform>)"
+  // We look for a version-like token between package name and platform
+  const verMatch = title.match(/[\w.+-]+\/[\w.+-]+|[\d]+\.[\d]+[\w.+-]*/);
+  return verMatch ? verMatch[0] : '—';
+}
+
+function reBuildFromHistory(pkgName, version, platform) {
+  const pkg = State.packages.find(p => p.name === pkgName);
+  const ver = version === '—' ? (pkg?.version || '') : version;
+  showBuildModal(pkgName, ver);
+  // Pre-select the platform from the historical run
+  setTimeout(() => {
+    const pSel = el('bm-platform');
+    for (const opt of pSel.options) { if (opt.value === platform) { opt.selected = true; break; } }
+    updateCvmfsTarget();
+  }, 50);
+}
+
+// ── Builds tab ─────────────────────────────────────────────────────────────
+async function loadBuilds() {
+  const filter = el('build-filter').value;
+  const url = `/repos/${State.owner}/${State.repo}/actions/runs?per_page=30`
+    + (filter ? `&status=${filter}` : '');
+  try {
+    const data = await ghGet(url);
+    const runs = data.workflow_runs || [];
+    const active = runs.filter(r => r.status === 'in_progress').length;
+    updateRunningBadge(active);
+    el('build-last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    renderBuildsList(runs);
+  } catch(e) { el('builds-list').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`; }
+}
+
+function renderBuildsList(runs) {
+  const div = el('builds-list');
+  if (!runs.length) { div.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><p>No runs found.</p></div>'; return; }
+  div.innerHTML = runs.map(r => {
+    const isRunning = r.status === 'in_progress';
+    const pkg  = r.display_title || r.name || '—';
+    const plat = extractPlatform(r);
+    const dur  = r.run_started_at ? formatDuration(r.run_started_at, r.updated_at || new Date().toISOString()) : '';
+    return `<div class="box" style="margin-bottom:10px;">
+      <div class="box-header" style="padding:10px 14px; gap:10px;">
+        ${statusBadge(r.status, r.conclusion)}
+        <span style="font-weight:600; flex:1;">${esc(pkg)}</span>
+        <span class="mono text-muted" style="font-size:11px;">${esc(plat)}</span>
+        <span class="text-muted" style="font-size:12px;">${formatTime(r.run_started_at)}</span>
+        ${dur ? `<span class="text-muted" style="font-size:12px;">${dur}</span>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="openLog(${r.id},'${esc(pkg)}')">Logs</button>
+        ${isRunning ? `<button class="btn btn-danger btn-sm" onclick="cancelRun(${r.id})">Cancel</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function cancelRun(runId) {
+  if (!confirm('Cancel this workflow run?')) return;
+  try {
+    await ghPost(`/repos/${State.owner}/${State.repo}/actions/runs/${runId}/cancel`, {});
+    setTimeout(loadBuilds, 1500);
+  } catch(e) { alert('Cancel failed: ' + e.message); }
+}
+
+function startBuildPoll() {
+  stopBuildPoll();
+  State.buildPollTimer = setInterval(loadBuilds, 15000);
+}
+function stopBuildPoll() { clearInterval(State.buildPollTimer); }
+
+// ── Log viewer ─────────────────────────────────────────────────────────────
+async function openLog(runId, title) {
+  State.currentRunId = runId;
+  el('log-modal-title').textContent = title || `Run #${runId}`;
+  el('log-viewer').textContent = 'Loading…';
+  el('log-job-pipeline').innerHTML = '';
+  showModal('log-modal');
+  await refreshLog(runId);
+  // Auto-refresh logs while job is running
+  stopLogPoll();
+  State.logPollTimer = setInterval(async () => {
+    const updated = await refreshLog(runId);
+    if (updated === 'done') stopLogPoll();
+  }, 8000);
+}
+
+async function refreshLog(runId) {
+  try {
+    const [run, jobs] = await Promise.all([
+      ghGet(`/repos/${State.owner}/${State.repo}/actions/runs/${runId}`),
+      ghGet(`/repos/${State.owner}/${State.repo}/actions/runs/${runId}/jobs`),
+    ]);
+    renderJobPipeline(jobs.jobs || []);
+    const isRunning = run.status === 'in_progress' || run.status === 'queued';
+    // Find the latest job that has logs
+    const jobsWithLogs = (jobs.jobs || []).filter(j => j.status !== 'queued');
+    if (!jobsWithLogs.length) {
+      el('log-viewer').textContent = 'Waiting for job to start…';
+      return isRunning ? 'running' : 'done';
+    }
+    const latestJob = jobsWithLogs[jobsWithLogs.length - 1];
+    await loadJobLog(latestJob.id);
+    return isRunning ? 'running' : 'done';
+  } catch(e) {
+    el('log-viewer').textContent = 'Error loading log: ' + e.message;
+    return 'done';
+  }
+}
+
+async function loadJobLog(jobId) {
+  try {
+    // GitHub returns a redirect to a zip; for display we use the steps
+    const job = await ghGet(`/repos/${State.owner}/${State.repo}/actions/jobs/${jobId}`);
+    const steps = (job.steps || []).map(s =>
+      `${stepIcon(s.conclusion || s.status)} ${s.name}\n`
+      + (s.conclusion === 'failure' ? '   (step failed)\n' : '')
+    ).join('');
+    const viewer = el('log-viewer');
+    viewer.textContent = steps || 'No step details yet.';
+    viewer.scrollTop = viewer.scrollHeight;
+  } catch(e) {
+    el('log-viewer').textContent = 'Log unavailable: ' + e.message;
+  }
+}
+
+function stepIcon(s) {
+  return { success:'✅', failure:'❌', skipped:'⏭', in_progress:'⏳', queued:'⏸' }[s] || '◦';
+}
+
+function renderJobPipeline(jobs) {
+  if (!jobs.length) { el('log-job-pipeline').innerHTML = ''; return; }
+  const steps = jobs.map(j => {
+    const cls = j.conclusion || j.status || 'pending';
+    const icon = { success:'✅', failure:'❌', in_progress:'⏳', queued:'⏸', skipped:'⏭' }[cls] || '◦';
+    return `<div class="job-step ${cls === 'in_progress' ? 'running' : cls}">
+      <span class="step-icon">${icon}</span>${esc(j.name.replace('bits-','').replace(/\s*—.*$/,''))}
+    </div>`;
+  });
+  el('log-job-pipeline').innerHTML = `<div class="job-pipeline" style="margin-bottom:10px;">${steps.join('')}</div>`;
+}
+
+function stopLogPoll() { clearInterval(State.logPollTimer); }
+
+// ── CVMFS Status ───────────────────────────────────────────────────────────
+async function loadCvmfsStatusData() {
+  try {
+    const data = await ghGet(`/repos/${State.owner}/${State.repo}/contents/cvmfs-status.json`);
+    const json = JSON.parse(atob(data.content.replace(/\n/g,'')));
+    State.cvmfsStatus = json.packages || [];
+    // Merge into packages list
+    State.packages.forEach(p => {
+      const found = State.cvmfsStatus.find(c => c.name === p.name && c.version === p.version);
+      p.cvmfsStatus = found ? found.status : 'pending';
+    });
+  } catch { State.cvmfsStatus = []; }
+  return State.cvmfsStatus;
+}
+
+async function loadCvmfsStatus() {
+  el('cvmfs-tbody').innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+  await loadCvmfsStatusData();
+  // Merge workflow run history to enrich status
+  try {
+    const runs = await ghGet(`/repos/${State.owner}/${State.repo}/actions/runs?per_page=100`);
+    (runs.workflow_runs || []).forEach(r => {
+      if (r.conclusion !== 'success') return;
+      const title = r.display_title || '';
+      const m = title.match(/^(\S+)/);
+      if (!m) return;
+      const pkgName = m[1];
+      const plat = extractPlatform(r);
+      const existing = State.cvmfsStatus.find(c => c.name === pkgName && c.platform === plat);
+      if (!existing) {
+        State.cvmfsStatus.push({ name: pkgName, version: '—', platform: plat,
+          cvmfs_path: '—', published_at: r.updated_at, status: 'published' });
+      }
+    });
+  } catch {}
+  renderCvmfsProgress();
+  filterCvmfs();
+}
+
+function renderCvmfsProgress() {
+  const total = State.cvmfsStatus.length;
+  const pub   = State.cvmfsStatus.filter(p => p.status === 'published').length;
+  const pend  = State.cvmfsStatus.filter(p => p.status === 'pending' || !p.status).length;
+  const fail  = State.cvmfsStatus.filter(p => p.status === 'failed').length;
+  const pct   = total ? Math.round((pub / total) * 100) : 0;
+  el('cvmfs-progress').style.width = pct + '%';
+  el('cvmfs-pct').textContent = total ? `${pct}% (${pub}/${total})` : '—';
+  el('cvmfs-pub-count').textContent  = pub;
+  el('cvmfs-pend-count').textContent = pend;
+  el('cvmfs-fail-count').textContent = fail;
+}
+
+function filterCvmfs() {
+  const q    = el('cvmfs-search').value.toLowerCase();
+  const sf   = el('cvmfs-filter-status').value;
+  const plf  = el('cvmfs-filter-platform').value;
+  const rows = State.cvmfsStatus.filter(p => {
+    if (q   && !p.name?.toLowerCase().includes(q)) return false;
+    if (sf  && p.status !== sf)   return false;
+    if (plf && p.platform !== plf) return false;
+    return true;
+  });
+  const tbody = el('cvmfs-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty"><div>No entries.</div></td></tr>'; return; }
+  tbody.innerHTML = rows.map(p => `<tr>
+    <td style="font-weight:600; font-family:var(--font-mono); font-size:12px;">${esc(p.name||'')}</td>
+    <td class="mono">${esc(p.version||'—')}</td>
+    <td class="mono">${esc(p.platform||'—')}</td>
+    <td class="mono" style="font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+        title="${esc(p.cvmfs_path||'')}">${esc(p.cvmfs_path||'—')}</td>
+    <td style="font-size:12px;">${p.published_at ? formatTime(p.published_at) : '—'}</td>
+    <td>${cvmfsStatusBadge(p.status)}</td>
+    <td>
+      ${p.status !== 'published' ? `<button class="btn btn-primary btn-sm"
+        onclick="showBuildModal('${esc(p.name||'')}','${esc(p.version||'')}')">Publish</button>` : ''}
+    </td>
+  </tr>`).join('');
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+function renderSettings() {
+  const c = State.config || {};
+  el('settings-auth-info').innerHTML = State.token
+    ? `<div class="alert alert-ok">Connected — token is active.</div>`
+    : `<div class="alert alert-warn">No token configured.  The console is read-only without authentication.</div>`;
+
+  // Repo info
+  const isLocal = !window.location.hostname.includes('github.io');
+  el('settings-repo').innerHTML = `
+    <tr><td>Owner / Repository</td><td><code>${State.owner||'—'}/${State.repo||'—'}</code></td></tr>
+    ${!isLocal ? `<tr><td>Pages URL</td><td><code>https://${State.owner}.github.io/${State.repo}/</code></td></tr>` : ''}
+    <tr><td>CVMFS repo</td><td><code>${c.cvmfs_repo||'—'}</code></td></tr>
+    <tr><td>CVMFS prefix</td><td><code>${c.cvmfs_prefix||'—'}</code></td></tr>
+    <tr><td>Platforms</td><td>${getPlatforms().map(p=>`<code>${p}</code>`).join(' ')}</td></tr>
+    <tr><td>Workflow</td><td><code>${c.publish_workflow||'cvmfs-publish.yml'}</code></td></tr>
+  `;
+  // Show editable repo panel only for local dev
+  const editPanel = el('settings-repo-edit');
+  if (editPanel) {
+    editPanel.style.display = isLocal ? 'block' : 'none';
+    if (isLocal) {
+      el('settings-owner').value    = State.owner;
+      el('settings-repo-name').value = State.repo;
+    }
+  }
+
+  // ui-config.yaml display
+  const raw = Object.entries(c).map(([k,v]) =>
+    `<span style="color:#58a6ff;">${k}</span>: <span style="color:#a5d6ff;">${Array.isArray(v)?'\n  - '+v.join('\n  - '):v}</span>`
+  ).join('\n');
+  el('settings-config-raw').innerHTML =
+    `<pre style="background:#0d1117;color:#c9d1d9;padding:16px;border-radius:6px;font-size:12px;overflow-x:auto;">${raw}</pre>`;
+
+  // Providers
+  renderProviders();
+}
+
+function applyRepoFromSettings() {
+  const owner = el('settings-owner').value.trim();
+  const repo  = el('settings-repo-name').value.trim();
+  if (!owner || !repo) return;
+  sessionStorage.setItem('bits_owner', owner);
+  sessionStorage.setItem('bits_repo',  repo);
+  State.owner = owner;
+  State.repo  = repo;
+  refreshAll();
+}
+
+function addManualProvider() {
+  const owner  = el('manual-owner').value.trim();
+  const repo   = el('manual-repo').value.trim();
+  const branch = el('manual-branch').value.trim() || 'main';
+  if (!owner || !repo) return;
+  const entry = { owner, repo, branch, name: `${owner}/${repo}` };
+  if (!isProviderActive(entry)) {
+    State.activeProviders.push(entry);
+    sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
+    renderProviderSummary();
+  }
+  el('manual-owner').value = '';
+  el('manual-repo').value  = '';
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function el(id) { return document.getElementById(id); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showModal(id)  { el(id).classList.remove('hidden'); }
+function hideModal(id)  { el(id).classList.add('hidden'); }
+
+function statusBadge(status, conclusion) {
+  if (status === 'in_progress') return `<span class="badge badge-running"><span class="spinner"></span> Running</span>`;
+  if (status === 'queued')      return `<span class="badge badge-pending">Queued</span>`;
+  const map = { success:'badge-success', failure:'badge-failure',
+                cancelled:'badge-cancelled', skipped:'badge-skipped' };
+  const labels = { success:'✅ Success', failure:'❌ Failed',
+                   cancelled:'Cancelled', skipped:'Skipped' };
+  const cls = map[conclusion] || 'badge-skipped';
+  return `<span class="badge ${cls}">${labels[conclusion] || conclusion || '—'}</span>`;
+}
+
+function cvmfsStatusBadge(status) {
+  if (status === 'published') return `<span class="badge badge-success">✅ Published</span>`;
+  if (status === 'failed')    return `<span class="badge badge-failure">❌ Failed</span>`;
+  return `<span class="badge badge-pending">⏳ Pending</span>`;
+}
+
+function getPlatforms() {
+  const c = State.config || {};
+  return Array.isArray(c.platforms) ? c.platforms : [c.platforms].filter(Boolean);
+}
+
+function formatTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { month:'short', day:'numeric',
+    hour:'2-digit', minute:'2-digit' });
+}
+
+function formatDuration(start, end) {
+  const ms = new Date(end) - new Date(start);
+  if (ms < 0) return '—';
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60), rs = s % 60;
+  if (m < 60) return `${m}m ${rs}s`;
+  return `${Math.floor(m/60)}h ${m%60}m`;
+}
+
+function extractPlatform(run) { return extractPlatformFromRun(run); }
+
+function updateRunningBadge(count) {
+  const badge = el('running-badge');
+  badge.style.display = count ? 'inline' : 'none';
+  badge.textContent = count;
+}
+
+function showFetchError(targetId, err) {
+  const t = el(targetId);
+  if (t) t.innerHTML = `<span class="text-muted">Error: ${esc(err.message)}</span>`;
+}
+
+function refreshAll() {
+  loadConfig().then(() => {
+    loadDashboard();
+    loadPackages();
+    loadCvmfsStatus();
+  });
+}
+
+// ── Close modals on background click ──────────────────────────────────────
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.add('hidden'); });
+});
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.querySelectorAll('.modal-bg').forEach(m => m.classList.add('hidden'));
+});
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────
+(async () => {
+  detectRepo();
+  if (State.token) {
+    try {
+      const user = await ghFetch('/user');
+      setAuthStatus(true, user.login);
+    } catch { State.token = ''; sessionStorage.removeItem('gh_token'); }
+  }
+  // Load providers from the central registry (public, no auth needed).
+  loadProviders();
+  // loadConfig shows the repo-setup modal if owner/repo are unknown.
+  await loadConfig();
+  if (!State.owner || !State.repo) return; // waiting for user input in modal
+  loadDashboard();
+  loadPackages().then(() => loadCvmfsStatus());
+  // Auto-refresh running badge every 30s
+  setInterval(async () => {
+    try {
+      const data = await ghGet(`/repos/${State.owner}/${State.repo}/actions/runs?status=in_progress&per_page=5`);
+      updateRunningBadge((data.workflow_runs || []).length);
+    } catch {}
+  }, 30000);
+})();
+</script>
+</body>
+</html>
