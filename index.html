@@ -341,6 +341,9 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
     <div class="nav-item" onclick="nav('settings')" id="nav-settings">
       <i class="icon">⚙️</i> Settings
     </div>
+    <div class="nav-item" onclick="nav('help')" id="nav-help">
+      <i class="icon">📖</i> Help
+    </div>
 
     <div id="sidebar-footer">
       <div id="repo-label" class="mono" style="color:#8b949e; font-size:11px;"></div>
@@ -492,6 +495,258 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
       <div id="schedules-list"><div class="loading">Loading…</div></div>
     </div>
 
+    <!-- Help ──────────────────────────────────────────────────────────── -->
+    <div class="tab-content" id="tab-help">
+      <div class="page-title">Help &amp; Setup Guide</div>
+      <div class="page-sub">How to configure bits Console, set up runners, and use the publishing pipeline.</div>
+
+      <style>
+        .help-details { border:1px solid var(--c-border); border-radius:var(--radius);
+                        margin-bottom:10px; background:var(--c-surface); }
+        .help-details summary {
+          padding:12px 16px; font-weight:600; font-size:14px; cursor:pointer;
+          list-style:none; display:flex; align-items:center; gap:8px; }
+        .help-details summary::before { content:'▶'; font-size:10px; color:var(--c-muted); }
+        .help-details[open] summary::before { content:'▼'; }
+        .help-details .hbody { padding:4px 20px 16px; font-size:13px; line-height:1.7; }
+        .help-details .hbody h4 { font-size:13px; margin:14px 0 4px; color:var(--c-text); }
+        .help-details .hbody code { background:#f6f8fa; border:1px solid var(--c-border);
+          padding:1px 5px; border-radius:3px; font-size:12px; }
+        .help-details .hbody pre { background:#0d1117; color:#c9d1d9; padding:12px 16px;
+          border-radius:var(--radius); font-size:12px; overflow-x:auto; margin:8px 0; }
+        .help-details .hbody ol, .help-details .hbody ul { padding-left:20px; }
+        .help-details .hbody li { margin-bottom:4px; }
+        .help-details .hbody table.ref td:first-child { width:200px; font-family:var(--font-mono);
+          font-size:12px; color:var(--c-info); vertical-align:top; padding:4px 8px 4px 0; }
+        .help-details .hbody table.ref td { padding:4px 0; font-size:13px; border:none; }
+        .help-details .hbody table.ref tr:hover td { background:none; }
+      </style>
+
+      <details class="help-details" open>
+        <summary>🚀 Quick start</summary>
+        <div class="hbody">
+          <ol>
+            <li>Fork or clone <strong>bits-console</strong> into your GitHub organisation and enable
+                <strong>Settings → Pages → Deploy from branch (main / root)</strong>.</li>
+            <li>Edit <code>ui-config.yaml</code> in the repo root — set <code>cvmfs_repo</code>,
+                <code>cvmfs_prefix</code>, and <code>platforms</code>.</li>
+            <li>Open <code>https://&lt;org&gt;.github.io/bits-console/</code> in your browser.</li>
+            <li>Click <strong>Connect</strong> in the header and paste a GitHub PAT
+                (see <em>Personal Access Token</em> below).</li>
+            <li>Go to <strong>Settings → Providers</strong> and select the recipe repositories
+                you want to build from.</li>
+            <li>Register self-hosted runners on your build, ingest, and CVMFS hosts
+                (see <em>Runner setup</em> below).</li>
+            <li>Add the required secrets to the repository
+                (see <em>Repository secrets</em> below).</li>
+            <li>Return to <strong>Packages</strong>, pick a recipe, and click
+                <strong>Build &amp; Publish</strong>.</li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="help-details">
+        <summary>📄 ui-config.yaml reference</summary>
+        <div class="hbody">
+          <p>Create or edit <code>ui-config.yaml</code> in the repository root.
+             <strong>All values in this file are public</strong> — never put secrets here.</p>
+          <table class="ref">
+            <tr><td>title</td><td>Page title shown in the header (default: <em>bits Console</em>).</td></tr>
+            <tr><td>subtitle</td><td>Subtitle shown beneath the title.</td></tr>
+            <tr><td>cvmfs_repo</td><td>CVMFS repository name, e.g. <code>sft.cern.ch</code>.</td></tr>
+            <tr><td>cvmfs_prefix</td><td>Absolute root path on CVMFS where packages are installed,
+                e.g. <code>/cvmfs/sft.cern.ch/lcg/releases</code>.</td></tr>
+            <tr><td>platforms</td><td>YAML list of build platform labels offered in the
+                build dialog, e.g. <code>x86_64-el9</code>, <code>aarch64-el9</code>.</td></tr>
+            <tr><td>publish_workflow</td><td>Filename of the build+publish workflow (default:
+                <code>cvmfs-publish.yml</code>).</td></tr>
+            <tr><td>recipe_repos</td><td>Initial list of recipe repositories.
+                Overridden by the provider selection in Settings.</td></tr>
+          </table>
+          <pre>title: LCG Software Console
+subtitle: CERN EP-SFT
+cvmfs_repo: sft.cern.ch
+cvmfs_prefix: /cvmfs/sft.cern.ch/lcg/releases
+platforms:
+  - x86_64-el9
+  - x86_64-el8
+  - aarch64-el9
+publish_workflow: cvmfs-publish.yml
+recipe_repos: []</pre>
+        </div>
+      </details>
+
+      <details class="help-details">
+        <summary>🔑 Personal Access Token (PAT)</summary>
+        <div class="hbody">
+          <p>The console requires a GitHub PAT to call the GitHub API on your behalf.
+             The token is stored in the browser only (never sent to any server other than
+             <code>api.github.com</code>).</p>
+          <h4>Required scopes</h4>
+          <ul>
+            <li><code>repo</code> — read ui-config.yaml, recipe files, and cvmfs-status.json</li>
+            <li><code>workflow</code> — trigger and cancel GitHub Actions runs</li>
+          </ul>
+          <h4>Create a token</h4>
+          <ol>
+            <li>Go to <strong>GitHub → Settings → Developer settings → Personal access tokens →
+                Tokens (classic)</strong>.</li>
+            <li>Click <strong>Generate new token (classic)</strong>.</li>
+            <li>Select the <code>repo</code> and <code>workflow</code> checkboxes.</li>
+            <li>Set an expiry, generate, and copy the token.</li>
+            <li>Paste it into the <strong>Connect</strong> dialog in the console header.</li>
+          </ol>
+          <p>Use <strong>Settings → Persistence → Export config</strong> to save the token
+             to a file so you don't need to re-enter it on every visit.</p>
+        </div>
+      </details>
+
+      <details class="help-details">
+        <summary>🏃 Self-hosted runner setup</summary>
+        <div class="hbody">
+          <p>The publishing pipeline uses three runner types, each registered in
+             <strong>Settings → Actions → Runners</strong> in the bits-console repository.</p>
+
+          <h4>1 · Build runner — <code>bits-build-&lt;platform&gt;</code></h4>
+          <p>One runner per target platform (e.g. <code>bits-build-x86_64-el9</code>).</p>
+          <ul>
+            <li>OS: the target Linux distribution (EL9, EL8, …)</li>
+            <li>Must have <code>bits</code> CLI installed and on <code>PATH</code></li>
+            <li>Must have SSH access to the ingestion host (for <code>rsync</code>)</li>
+            <li>Runner labels: <code>self-hosted</code>, <code>bits-build-&lt;platform&gt;</code></li>
+          </ul>
+          <pre># Register on the build host:
+cd /opt/actions-runner
+./config.sh --url https://github.com/&lt;org&gt;/bits-console \
+            --token &lt;RUNNER_TOKEN&gt; \
+            --labels "self-hosted,bits-build-x86_64-el9" \
+            --unattended
+./svc.sh install &amp;&amp; ./svc.sh start</pre>
+
+          <h4>2 · Ingest runner — <code>bits-ingest</code></h4>
+          <ul>
+            <li>Host where <code>cvmfs-ingest</code> (the Go daemon) is installed</li>
+            <li>Needs access to the spool directory and the object store</li>
+            <li>Runner labels: <code>self-hosted</code>, <code>bits-ingest</code></li>
+          </ul>
+
+          <h4>3 · Publisher runner — <code>bits-cvmfs-publisher</code></h4>
+          <ul>
+            <li>Host with CVMFS stratum-0 access (can open catalog transactions)</li>
+            <li>Must have <code>cvmfs_server</code> CLI available</li>
+            <li>Runner labels: <code>self-hosted</code>, <code>bits-cvmfs-publisher</code></li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="help-details">
+        <summary>🔒 Repository secrets</summary>
+        <div class="hbody">
+          <p>Add these in <strong>Settings → Secrets and variables → Actions</strong>
+             inside the bits-console repository.</p>
+          <table class="ref">
+            <tr><td>SPOOL_SSH_KEY</td><td>SSH private key (PEM) for the build runner to
+                rsync the staged tree to the ingestion host.</td></tr>
+            <tr><td>SPOOL_USER</td><td>SSH username on the ingestion host.</td></tr>
+            <tr><td>SPOOL_HOST</td><td>Hostname or IP of the ingestion host.</td></tr>
+            <tr><td>SPOOL_PATH</td><td>Absolute path to the spool root directory on the
+                ingestion host.</td></tr>
+            <tr><td>CVMFS_REPO</td><td>CVMFS repository name (e.g. <code>sft.cern.ch</code>).
+                Used by <code>cvmfs-publish.sh</code> on the stratum-0 runner.</td></tr>
+          </table>
+          <p>Optional repository <em>variables</em> (Settings → Secrets → Variables):</p>
+          <table class="ref">
+            <tr><td>BITS_CONFIG_REPO</td><td>Default <code>owner/repo</code> for the recipe
+                config directory when not supplied by the build dialog.</td></tr>
+            <tr><td>CVMFS_BACKEND_TYPE</td><td><code>local</code> (default) or <code>s3</code></td></tr>
+            <tr><td>CVMFS_BACKEND_PATH</td><td>Path or bucket URL for the object store.</td></tr>
+            <tr><td>INGEST_CONCURRENCY</td><td>Worker threads for cvmfs-ingest (0 = auto).</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="help-details">
+        <summary>📦 Recipe providers</summary>
+        <div class="hbody">
+          <p>The Packages tab is populated from <em>recipe repositories</em> — Git repos that
+             contain <code>.sh</code> files with bits YAML front matter.</p>
+          <h4>Provider registry</h4>
+          <p>Available providers are fetched from
+             <code>bitsorg/bits-providers/registry.json</code> (public repo).
+             Each entry resolves to a GitHub <code>owner/repo</code> via the
+             <code>homepage</code> URL field when the <code>owner</code> field contains
+             a display name rather than a plain GitHub slug.</p>
+          <h4>Recipe file format</h4>
+          <pre>package: ROOT
+version: 6.30.08
+description: Data Analysis Framework
+homepage: https://root.cern
+license: LGPL-2.1
+requires:
+  - Python
+  - libpng
+---
+# Bash build script follows the --- separator
+cmake -DCMAKE_INSTALL_PREFIX="$INSTALLROOT" ...</pre>
+          <h4>Adding a provider not in the registry</h4>
+          <p>Go to <strong>Settings → Providers → Add a repository not in the registry</strong>
+             and enter the GitHub owner, repository name, and branch.</p>
+        </div>
+      </details>
+
+      <details class="help-details">
+        <summary>📅 Scheduled builds</summary>
+        <div class="hbody">
+          <ol>
+            <li>Go to the <strong>Schedules</strong> tab and click <strong>+ New schedule file</strong>.</li>
+            <li>Set a name (e.g. <code>nightly.json</code>), a cron expression for documentation,
+                and an optional description.</li>
+            <li>Click <strong>+ Add entry</strong> to add packages — fill in the package name,
+                version (blank = latest), platform, and CVMFS target path.</li>
+            <li>Enable individual entries with the checkbox and enable the file with the
+                <strong>Enable</strong> button.</li>
+            <li>The <code>scheduled-build.yml</code> workflow runs daily at 02:00 UTC and
+                dispatches <code>cvmfs-publish.yml</code> for every enabled entry in every
+                enabled schedule file.</li>
+            <li>Use <strong>workflow_dispatch</strong> on <code>scheduled-build.yml</code> to
+                run manually and use the <code>dry_run</code> input to preview without
+                actually triggering builds.</li>
+          </ol>
+          <p>The cron expression stored in the JSON file is informational only.
+             To change the actual trigger schedule, edit the <code>schedule: - cron:</code>
+             line in <code>.github/workflows/scheduled-build.yml</code>.</p>
+        </div>
+      </details>
+
+      <details class="help-details">
+        <summary>🔧 Troubleshooting</summary>
+        <div class="hbody">
+          <table class="ref">
+            <tr><td>"Workflow not found"</td><td>Check that <code>publish_workflow</code> in
+                <code>ui-config.yaml</code> matches the actual workflow filename in
+                <code>.github/workflows/</code>.</td></tr>
+            <tr><td>Empty package list</td><td>No providers selected — go to
+                <strong>Settings → Providers</strong> and enable at least one. If a selected
+                provider still shows zero packages, verify the GitHub slug is correct
+                (hover over the → arrow in the provider row).</td></tr>
+            <tr><td>Wrong packages from a provider</td><td>The <code>homepage</code> field in
+                <code>bitsorg/bits-providers/registry.json</code> controls which GitHub repo
+                is fetched. Check that the resolved path (shown after → in the provider row)
+                matches the intended repo.</td></tr>
+            <tr><td>Authentication error</td><td>Regenerate the PAT with <code>repo</code>
+                and <code>workflow</code> scopes. Use <strong>Connect</strong> in the header
+                to update it.</td></tr>
+            <tr><td>Build stuck / no runner</td><td>Verify the self-hosted runner is online
+                and the label exactly matches the platform, e.g.
+                <code>bits-build-x86_64-el9</code>.</td></tr>
+            <tr><td>Pages deploy counted as build</td><td>Ensure you are running the latest
+                version of bits-console — older versions fetched all workflow runs instead of
+                scoping to <code>cvmfs-publish.yml</code>.</td></tr>
+          </table>
+        </div>
+      </details>
+    </div>
+
     <!-- Settings ──────────────────────────────────────────────────────── -->
     <div class="tab-content" id="tab-settings">
       <div class="page-title">Settings</div>
@@ -536,7 +791,8 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
           Select the recipe repositories to browse in the Packages tab.
           The list is fetched from
           <a href="https://github.com/bitsorg/bits-providers" target="_blank">bitsorg/bits-providers</a>.
-          Changes take effect immediately and are remembered for this session.
+          Changes take effect immediately. Enable <em>Remember me</em> in the Persistence
+          section below to keep them across browser sessions.
         </p>
         <div id="provider-summary" class="alert alert-warn">Loading providers…</div>
         <div class="box" style="margin-bottom:16px;">
@@ -590,6 +846,18 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
           <tr><td>SPOOL_PATH</td><td>Absolute spool root path on the ingestion host</td></tr>
           <tr><td>CVMFS_REPO</td><td>CVMFS repository name (e.g. <code>sft.cern.ch</code>)</td></tr>
         </table>
+      </div>
+
+      <!-- Config persistence -->
+      <div class="settings-section">
+        <h3>Config persistence</h3>
+        <p style="font-size:13px;color:var(--c-muted);margin-bottom:12px;">
+          By default settings (token, repository, selected providers) are remembered only for
+          the current browser tab and cleared when the tab is closed.  Enable
+          <em>Remember me</em> to persist them in <code>localStorage</code> across browser
+          sessions, or use the export/import buttons to save and restore a snapshot.
+        </p>
+        <div id="persistence-panel"></div>
       </div>
     </div>
 
@@ -1028,6 +1296,20 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
 <script>
 'use strict';
 
+// ── Persistence bootstrap ──────────────────────────────────────────────────
+// If the user previously enabled "remember me", migrate localStorage values
+// into sessionStorage so the rest of the app can read them normally.
+(function migrateLocalStorage() {
+  try {
+    if (localStorage.getItem('bits_persist') === 'true') {
+      for (const k of ['gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers']) {
+        const v = localStorage.getItem(k);
+        if (v !== null) sessionStorage.setItem(k, v);
+      }
+    }
+  } catch { /* private-browsing / storage blocked */ }
+})();
+
 // ── State ──────────────────────────────────────────────────────────────────
 const State = {
   token:           sessionStorage.getItem('gh_token') || '',
@@ -1044,6 +1326,21 @@ const State = {
   logPollTimer:    null,
   currentRunId:    null,
 };
+
+// ── Storage helper ─────────────────────────────────────────────────────────
+// Write to sessionStorage always; also write to localStorage when persistence
+// is enabled ("remember me" toggle).
+function storeItem(key, value) {
+  try { sessionStorage.setItem(key, value); } catch { /* storage blocked */ }
+  try {
+    if (localStorage.getItem('bits_persist') === 'true')
+      localStorage.setItem(key, value);
+  } catch { /* private-browsing */ }
+}
+function removeItem(key) {
+  try { sessionStorage.removeItem(key); } catch { /* storage blocked */ }
+  try { localStorage.removeItem(key); } catch { /* storage blocked */ }
+}
 
 // ── GitHub API ─────────────────────────────────────────────────────────────
 async function ghFetch(path, opts = {}) {
@@ -1128,8 +1425,8 @@ function setRepo() {
   const repo  = el('setup-repo').value.trim();
   if (!owner || !repo) { el('setup-error').style.display = 'block'; return; }
   el('setup-error').style.display = 'none';
-  sessionStorage.setItem('bits_owner', owner);
-  sessionStorage.setItem('bits_repo',  repo);
+  storeItem('bits_owner', owner);
+  storeItem('bits_repo',  repo);
   State.owner = owner;
   State.repo  = repo;
   hideModal('repo-setup-modal');
@@ -1150,7 +1447,7 @@ function initActiveProviders() {
         parsed.map(entry => normaliseProviderEntry(entry))
       );
       // Persist the normalised version so stale entries don't accumulate.
-      sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
+      storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
       return;
     } catch {}
   }
@@ -1246,7 +1543,7 @@ function toggleProvider(ghOwner, ghRepo, branch, name, checked) {
   }
   // Always deduplicate before persisting to defend against any race.
   State.activeProviders = deduplicateProviders(State.activeProviders);
-  sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
+  storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
   renderProviderSummary();
   // Invalidate cache and reload the package list immediately.
   State._packagesLoaded = false;
@@ -1333,7 +1630,7 @@ async function saveToken() {
     if (!res.ok) throw new Error('Invalid token or insufficient permissions');
     const user = await res.json();
     State.token = tok;
-    sessionStorage.setItem('gh_token', tok);
+    storeItem('gh_token', tok);
     hideModal('auth-modal');
     setAuthStatus(true, user.login);
     refreshAll();
@@ -1361,6 +1658,7 @@ function nav(tab) {
   if (tab === 'cvmfs')     loadCvmfsStatus();
   if (tab === 'schedules') loadSchedules();
   if (tab === 'settings')  renderSettings();
+  if (tab === 'help')      {/* static */}
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
@@ -1440,7 +1738,9 @@ async function getRecipeRepos() {
     if (!repo) continue;
     try {
       const tree = await ghGet(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
-      const shFiles = (tree.tree || []).filter(f => f.type === 'blob' && f.path.match(/^[^/]+\.sh$/));
+      // Match .sh files at any depth; non-bits-recipe files are filtered out
+      // later in parseRecipe() by checking for a package: YAML field.
+      const shFiles = (tree.tree || []).filter(f => f.type === 'blob' && f.path.endsWith('.sh'));
       const batch = 30;
       for (let i = 0; i < Math.min(shFiles.length, 300); i += batch) {
         const chunk = shFiles.slice(i, i + batch);
@@ -1466,6 +1766,9 @@ function parseRecipe(text, path, src = {}) {
   const yaml   = parts[0] || '';
   const script = parts.slice(1).join('---\n').trim();  // everything after first ---
   const fields = parseSimpleYaml(yaml);
+
+  // Skip files that are not bits recipes (must declare at least package: or version:).
+  if (!fields.package && !fields.version) return null;
 
   // Collect all list-valued fields (patches, requires, etc.)
   const lists = {};
@@ -1936,9 +2239,11 @@ async function loadCvmfsStatusData() {
 async function loadCvmfsStatus() {
   el('cvmfs-tbody').innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
   await loadCvmfsStatusData();
-  // Merge workflow run history to enrich status
+  // Merge successful workflow run history to enrich status — scope to the
+  // publish workflow only so GitHub Pages deployment runs are excluded.
   try {
-    const runs = await ghGet(`/repos/${State.owner}/${State.repo}/actions/runs?per_page=100`);
+    const wf   = encodeURIComponent((State.config || {}).publish_workflow || 'cvmfs-publish.yml');
+    const runs = await ghGet(`/repos/${State.owner}/${State.repo}/actions/workflows/${wf}/runs?per_page=100`);
     (runs.workflow_runs || []).forEach(r => {
       if (r.conclusion !== 'success') return;
       const title = r.display_title || '';
@@ -2033,14 +2338,138 @@ function renderSettings() {
 
   // Providers
   renderProviders();
+
+  // Persistence panel
+  renderPersistenceSettings();
+}
+
+// ── Config persistence ─────────────────────────────────────────────────────
+
+function isPersistEnabled() {
+  try { return localStorage.getItem('bits_persist') === 'true'; } catch { return false; }
+}
+
+function renderPersistenceSettings() {
+  const panel = el('persistence-panel');
+  if (!panel) return;
+  const on = isPersistEnabled();
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
+        <input type="checkbox" id="persist-toggle" ${on ? 'checked' : ''}
+               onchange="togglePersistence(this.checked)"
+               style="width:16px;height:16px;accent-color:var(--c-info);">
+        Remember me — persist token, repository, and providers across browser sessions
+      </label>
+    </div>
+    ${on ? `<div class="alert alert-info" style="margin-bottom:16px;font-size:13px;">
+      Your Personal Access Token is stored in <code>localStorage</code> on this device.
+      Disable <em>Remember me</em> and reload to clear it.
+    </div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-outline" onclick="exportConfig()" title="Download current settings as JSON">
+        ⬇ Export config
+      </button>
+      <label class="btn btn-outline" style="cursor:pointer;margin:0;" title="Restore settings from a previously exported JSON file">
+        ⬆ Import config
+        <input type="file" accept=".json,application/json" style="display:none;"
+               onchange="importConfig(this)">
+      </label>
+    </div>`;
+}
+
+function togglePersistence(enabled) {
+  try {
+    if (enabled) {
+      localStorage.setItem('bits_persist', 'true');
+      // Immediately push current session values into localStorage.
+      const keys = ['gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers'];
+      for (const k of keys) {
+        const v = sessionStorage.getItem(k);
+        if (v !== null) localStorage.setItem(k, v);
+      }
+    } else {
+      // Remove the flag and all persisted values.
+      ['bits_persist', 'gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers']
+        .forEach(k => localStorage.removeItem(k));
+    }
+  } catch { /* private-browsing */ }
+  renderPersistenceSettings();
+}
+
+function exportConfig() {
+  const cfg = {
+    _version: 1,
+    owner:    State.owner,
+    repo:     State.repo,
+    token:    State.token,
+    providers: State.activeProviders,
+  };
+  const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'bits-console-config.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+function importConfig(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const cfg = JSON.parse(e.target.result);
+      if (typeof cfg !== 'object') throw new Error('Not a valid config file');
+
+      // Apply token
+      if (cfg.token) {
+        State.token = cfg.token;
+        storeItem('gh_token', cfg.token);
+      }
+      // Apply repo
+      if (cfg.owner && cfg.repo) {
+        State.owner = cfg.owner;
+        State.repo  = cfg.repo;
+        storeItem('bits_owner', cfg.owner);
+        storeItem('bits_repo',  cfg.repo);
+      }
+      // Apply providers
+      if (Array.isArray(cfg.providers) && cfg.providers.length) {
+        State.activeProviders = deduplicateProviders(
+          cfg.providers.map(p => normaliseProviderEntry(p))
+        );
+        storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
+      }
+
+      // Update UI and reload data
+      renderSettings();
+      refreshAll();
+      // Brief success flash
+      const panel = el('persistence-panel');
+      if (panel) {
+        const flash = document.createElement('div');
+        flash.className = 'alert alert-info';
+        flash.style.cssText = 'margin-top:12px;font-size:13px;';
+        flash.textContent = '✓ Config imported successfully.';
+        panel.appendChild(flash);
+        setTimeout(() => flash.remove(), 3000);
+      }
+    } catch(err) {
+      alert('Import failed: ' + err.message);
+    }
+    // Reset file input so the same file can be re-selected later
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function applyRepoFromSettings() {
   const owner = el('settings-owner').value.trim();
   const repo  = el('settings-repo-name').value.trim();
   if (!owner || !repo) return;
-  sessionStorage.setItem('bits_owner', owner);
-  sessionStorage.setItem('bits_repo',  repo);
+  storeItem('bits_owner', owner);
+  storeItem('bits_repo',  repo);
   State.owner = owner;
   State.repo  = repo;
   refreshAll();
@@ -2054,7 +2483,7 @@ function addManualProvider() {
   const entry = { owner, repo, branch, name: `${owner}/${repo}` };
   if (!isProviderActive(entry)) {
     State.activeProviders.push(entry);
-    sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
+    storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
     renderProviderSummary();
     State._packagesLoaded = false;
     loadPackages();
@@ -2705,7 +3134,7 @@ document.addEventListener('keydown', e => {
     try {
       const user = await ghFetch('/user');
       setAuthStatus(true, user.login);
-    } catch { State.token = ''; sessionStorage.removeItem('gh_token'); }
+    } catch { State.token = ''; removeItem('gh_token'); }
   }
   // Load providers from the central registry first so _ghOwner/_ghRepo are
   // always resolved before any checkbox or getRecipeRepos() call.
