@@ -1168,7 +1168,9 @@ const State = {
   activeProviders: [],     // currently selected [{owner, repo, branch, name}]
   schedules:          {},  // filename → { cron, description, enabled, entries, _sha }
   providerOverrides:  {},  // providerKey → { owner, repo }  (user-set corrections)
+  branch:          'main',  // GitHub Pages source branch; refined by loadConfig()
   _packagesLoaded: false,  // true after first successful load; cleared when providers change
+  _helpLoaded:     false,
   buildPollTimer:  null,
   logPollTimer:    null,
   currentRunId:    null,
@@ -1341,6 +1343,18 @@ async function loadConfig() {
   }
   initActiveProviders();
   applyConfig();
+  // Detect the GitHub Pages source branch so README/REFERENCE links point to
+  // the right branch (may be 'test', 'gh-pages', etc., not necessarily 'main').
+  // Fire-and-forget — failure just keeps the 'main' default.
+  ghGet(`/repos/${State.owner}/${State.repo}/pages`)
+    .then(p => {
+      const b = p?.source?.branch;
+      if (b && b !== State.branch) {
+        State.branch     = b;
+        State._helpLoaded = false;   // re-fetch README with the correct branch
+      }
+    })
+    .catch(() => {});
 }
 
 // ── Repo setup (local dev) ─────────────────────────────────────────────────
@@ -1749,32 +1763,33 @@ async function loadHelp() {
   const content = el('help-readme-content');
   if (!content) return;
 
-  // Update GitHub links even before fetching (best-effort).
-  const base = State.owner && State.repo
-    ? `https://github.com/${State.owner}/${State.repo}/blob/main`
-    : 'https://github.com/bitsorg/bits-console/blob/main';
+  // Owner/repo may come from URL detection (no auth required) or from the
+  // connected session.  Either way the README is public and readable without
+  // a token via raw.githubusercontent.com.
+  const owner  = State.owner  || 'bitsorg';
+  const repo   = State.repo   || 'bits-console';
+  const branch = State.branch || 'main';   // set by Pages API in loadConfig()
+  const base   = `https://github.com/${owner}/${repo}/blob/${branch}`;
+
   const ghLink  = el('help-gh-link');
   const refLink = el('help-ref-link');
   if (ghLink)  ghLink.href  = `${base}/README.md`;
   if (refLink) refLink.href = `${base}/REFERENCE.md`;
 
-  // Require a configured repo before fetching.
-  if (!State.owner || !State.repo) {
-    content.innerHTML =
-      `<div style="color:var(--c-muted);font-size:13px;padding:12px 0;">
-         Connect to a repository first, then re-open Help.
-       </div>`;
-    return;
-  }
-
   try {
     await ensureMarked();
-    const data = await ghGet(`/repos/${State.owner}/${State.repo}/contents/README.md`);
-    const md   = atob(data.content.replace(/[\r\n]/g, ''));
 
-    // Configure marked: sanitize is removed in v9+; use default safe renderer.
+    // Fetch from the raw CDN — no auth needed for public repos, and much
+    // faster than the JSON Contents API (plain text, no base64 wrapping).
+    // If the token is available include it so private forks also work.
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/README.md`;
+    const hdrs   = {};
+    if (State.token) hdrs['Authorization'] = `Bearer ${State.token}`;
+    const res = await fetch(rawUrl, { headers: hdrs });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const md = await res.text();
+
     window.marked.setOptions({ gfm: true, breaks: false });
-
     content.innerHTML = `<div class="md-body">${window.marked.parse(md)}</div>`;
     State._helpLoaded = true;
   } catch (e) {
@@ -1873,7 +1888,10 @@ async function getRecipeRepos() {
     </div></td></tr>`;
     return [];
   }
-  const all = [];
+
+  const all   = [];
+  const BATCH = 50;   // concurrent raw fetches per round
+
   for (const rr of repoList) {
     const owner  = rr.owner  || State.owner;
     const repo   = rr.repo;
@@ -1882,13 +1900,20 @@ async function getRecipeRepos() {
     if (!repo) continue;
     try {
       const tree = await ghGet(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+      if (tree.truncated) console.warn(`Tree truncated for ${label} — some packages may be missing`);
       // Match .sh files at any depth; non-bits-recipe files are filtered out
       // later in parseRecipe() by checking for a package: YAML field.
       const shFiles = (tree.tree || []).filter(f => f.type === 'blob' && f.path.endsWith('.sh'));
-      const batch = 30;
-      for (let i = 0; i < Math.min(shFiles.length, 300); i += batch) {
-        const chunk = shFiles.slice(i, i + batch);
-        const parsed = await Promise.all(chunk.map(f => fetchRecipe(owner, repo, f.path)));
+      const total   = shFiles.length;
+
+      for (let i = 0; i < total; i += BATCH) {
+        const done  = Math.min(i + BATCH, total);
+        el('pkg-tbody').innerHTML =
+          `<tr><td colspan="7" class="loading">
+             Loading <strong>${esc(label)}</strong> — ${done} / ${total} files…
+           </td></tr>`;
+        const chunk  = shFiles.slice(i, i + BATCH);
+        const parsed = await Promise.all(chunk.map(f => fetchRecipe(owner, repo, branch, f)));
         all.push(...parsed.filter(Boolean).map(p => ({ ...p, _source: label })));
       }
     } catch(e) { console.warn('recipe repo error:', rr, e.message); }
@@ -1896,11 +1921,28 @@ async function getRecipeRepos() {
   return all.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function fetchRecipe(owner, repo, path) {
+// Fetch a single recipe file.
+// Primary path: raw.githubusercontent.com (CDN-served, no API rate-limit cost,
+//   returns plain text — much faster than the Contents API for large repos).
+// Fallback: Git Blob API using the SHA already in the tree (works for private repos
+//   and for commits not yet propagated to the raw CDN).
+async function fetchRecipe(owner, repo, branch, file) {
+  // raw.githubusercontent.com path
   try {
-    const data = await ghGet(`/repos/${owner}/${repo}/contents/${path}`);
-    const text = atob(data.content.replace(/\n/g,''));
-    return parseRecipe(text, path, { owner, repo });
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file.path}`;
+    const hdrs   = {};
+    if (State.token) hdrs['Authorization'] = `Bearer ${State.token}`;
+    const res = await fetch(rawUrl, { headers: hdrs });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    return parseRecipe(text, file.path, { owner, repo });
+  } catch { /* fall through to blob API */ }
+
+  // Git Blob API fallback (SHA from the tree — no extra lookup needed)
+  try {
+    const data = await ghGet(`/repos/${owner}/${repo}/git/blobs/${file.sha}`);
+    const text = atob((data.content || '').replace(/[\r\n]/g, ''));
+    return parseRecipe(text, file.path, { owner, repo });
   } catch { return null; }
 }
 
