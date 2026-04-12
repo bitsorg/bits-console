@@ -1779,15 +1779,24 @@ async function loadHelp() {
   try {
     await ensureMarked();
 
-    // Fetch from the raw CDN — no auth needed for public repos, and much
-    // faster than the JSON Contents API (plain text, no base64 wrapping).
-    // If the token is available include it so private forks also work.
-    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/README.md`;
-    const hdrs   = {};
-    if (State.token) hdrs['Authorization'] = `Bearer ${State.token}`;
-    const res = await fetch(rawUrl, { headers: hdrs });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const md = await res.text();
+    // Fetch the raw markdown.  Two paths:
+    // 1. raw.githubusercontent.com — CDN, no auth needed for public repos,
+    //    plain text (no base64 wrapping).  May be blocked by some proxies.
+    // 2. GitHub Contents API — same authenticated channel used everywhere else
+    //    in the app; always works when the token is valid.
+    let md = '';
+    try {
+      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/README.md`;
+      const hdrs   = {};
+      if (State.token) hdrs['Authorization'] = `Bearer ${State.token}`;
+      const res = await fetch(rawUrl, { headers: hdrs });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      md = await res.text();
+    } catch {
+      // Raw CDN unreachable (proxy / network restriction) — fall back to API.
+      const data = await ghGet(`/repos/${owner}/${repo}/contents/README.md`);
+      md = atob((data.content || '').replace(/[\r\n]/g, ''));
+    }
 
     window.marked.setOptions({ gfm: true, breaks: false });
     content.innerHTML = `<div class="md-body">${window.marked.parse(md)}</div>`;
