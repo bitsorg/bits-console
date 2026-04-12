@@ -6,8 +6,9 @@
 #
 # ⚠ IMPORTANT — ALL VALUES IN THIS FILE ARE PUBLIC.
 #   This file is committed to git and served via the GitHub Contents API.
-#   Do NOT put passwords, tokens, SSH keys, or storage credentials here.
-#   Secrets belong in repository Settings → Secrets and variables → Actions.
+#   Do NOT put passwords, SSH keys, or storage credentials here.
+#   Those belong either in repository Settings → Secrets and variables → Actions
+#   (legacy mode) or stored directly on the runner machine (agnostic mode).
 #
 # The SPA reads this file at startup.  Changes take effect on the next
 # browser page load.
@@ -55,3 +56,49 @@ recipe_repos: []
 # ── Workflow ──────────────────────────────────────────────────────────────────
 # Workflow file to trigger for build + CVMFS publishing.
 publish_workflow: cvmfs-publish.yml
+
+# ── Runner configuration ──────────────────────────────────────────────────────
+# bits-console constructs a bits.rc file from the fields below and passes it
+# to every workflow dispatch as a base64-encoded input.  The runner writes it
+# to ~/.bits.rc before executing any build step, making runners fully agnostic
+# of which experiment or repository triggered the job.
+#
+# Two deployment modes are supported:
+#
+#   Agnostic mode (recommended for shared runner pools)
+#     Store SSH keys and other credentials directly on the runner machine.
+#     Set ssh_key_file to the on-runner path.  GitHub secrets are not needed.
+#
+#   Legacy mode (single-repo runners)
+#     Leave ssh_key_file blank and configure SPOOL_SSH_KEY, SPOOL_USER,
+#     SPOOL_HOST, SPOOL_PATH, CVMFS_REPO as repository secrets.  The workflow
+#     falls back to secrets when bits.rc does not supply these values.
+#
+# All values here are non-secret (hostnames, paths, labels).  Never put
+# private keys or passwords in this file.
+
+# Ingestion spool connection (non-secret endpoint info).
+spool_host: ingestion.example.org
+spool_user: bits
+spool_path: /var/spool/bits
+
+# Path to the SSH private key file on the runner machine.
+# The file must be readable by the runner process (chmod 600 recommended).
+# Leave blank to fall back to the SPOOL_SSH_KEY GitHub secret.
+ssh_key_file: /etc/bits/spool_key
+
+# Optional runner group label.  When set, it is appended to the runner
+# selector so that jobs are routed only to runners registered with this label.
+# Useful when a single GitHub Actions organisation has runners for multiple
+# experiments and you want to keep them separate.
+#
+# Runner registration example for group "cern":
+#   ./config.sh --labels "self-hosted,bits-build-x86_64-el9,cern"
+#
+# Leave blank to use any available runner for the requested platform.
+runner_group: ""
+
+# Recipe config repository dispatched to the build runner.
+# Overrides the BITS_CONFIG_REPO repository variable and the config_dir
+# input in individual builds.  Format: owner/repo
+config_repo: ""

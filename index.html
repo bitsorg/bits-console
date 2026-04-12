@@ -497,254 +497,63 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
 
     <!-- Help ──────────────────────────────────────────────────────────── -->
     <div class="tab-content" id="tab-help">
-      <div class="page-title">Help &amp; Setup Guide</div>
-      <div class="page-sub">How to configure bits Console, set up runners, and use the publishing pipeline.</div>
 
       <style>
-        .help-details { border:1px solid var(--c-border); border-radius:var(--radius);
-                        margin-bottom:10px; background:var(--c-surface); }
-        .help-details summary {
-          padding:12px 16px; font-weight:600; font-size:14px; cursor:pointer;
-          list-style:none; display:flex; align-items:center; gap:8px; }
-        .help-details summary::before { content:'▶'; font-size:10px; color:var(--c-muted); }
-        .help-details[open] summary::before { content:'▼'; }
-        .help-details .hbody { padding:4px 20px 16px; font-size:13px; line-height:1.7; }
-        .help-details .hbody h4 { font-size:13px; margin:14px 0 4px; color:var(--c-text); }
-        .help-details .hbody code { background:#f6f8fa; border:1px solid var(--c-border);
-          padding:1px 5px; border-radius:3px; font-size:12px; }
-        .help-details .hbody pre { background:#0d1117; color:#c9d1d9; padding:12px 16px;
-          border-radius:var(--radius); font-size:12px; overflow-x:auto; margin:8px 0; }
-        .help-details .hbody ol, .help-details .hbody ul { padding-left:20px; }
-        .help-details .hbody li { margin-bottom:4px; }
-        .help-details .hbody table.ref td:first-child { width:200px; font-family:var(--font-mono);
-          font-size:12px; color:var(--c-info); vertical-align:top; padding:4px 8px 4px 0; }
-        .help-details .hbody table.ref td { padding:4px 0; font-size:13px; border:none; }
-        .help-details .hbody table.ref tr:hover td { background:none; }
+        /* ── Rendered markdown (GitHub-style) ──────────────────────────────── */
+        .md-body { max-width: 860px; font-size: 14px; line-height: 1.7;
+                   color: var(--c-text); }
+        .md-body h1 { font-size: 22px; font-weight: 700; margin: 0 0 16px;
+                      padding-bottom: 8px; border-bottom: 2px solid var(--c-border); }
+        .md-body h2 { font-size: 18px; font-weight: 700; margin: 28px 0 10px;
+                      padding-bottom: 6px; border-bottom: 1px solid var(--c-border); }
+        .md-body h3 { font-size: 15px; font-weight: 600; margin: 20px 0 6px; }
+        .md-body h4 { font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+        .md-body p  { margin: 0 0 10px; }
+        .md-body a  { color: var(--c-info); text-decoration: none; }
+        .md-body a:hover { text-decoration: underline; }
+        .md-body code { background: #f6f8fa; border: 1px solid var(--c-border);
+                        padding: 1px 5px; border-radius: 3px; font-size: 12px;
+                        font-family: var(--font-mono); }
+        .md-body pre  { background: #0d1117; color: #c9d1d9; padding: 14px 16px;
+                        border-radius: var(--radius); font-size: 12px;
+                        overflow-x: auto; margin: 8px 0 14px; }
+        .md-body pre code { background: none; border: none; padding: 0;
+                            font-size: inherit; color: inherit; }
+        .md-body ul, .md-body ol { padding-left: 22px; margin: 6px 0 10px; }
+        .md-body li   { margin-bottom: 4px; }
+        .md-body blockquote { border-left: 3px solid var(--c-border);
+                              margin: 10px 0; padding: 4px 12px;
+                              color: var(--c-muted); font-style: italic; }
+        .md-body hr   { border: none; border-top: 1px solid var(--c-border);
+                        margin: 24px 0; }
+        .md-body table { border-collapse: collapse; width: 100%;
+                         margin: 8px 0 14px; font-size: 13px; }
+        .md-body th   { background: #f6f8fa; font-weight: 600; text-align: left; }
+        .md-body th, .md-body td { border: 1px solid var(--c-border);
+                                   padding: 6px 10px; vertical-align: top; }
+        .md-body tr:hover td { background: #f6f8fa; }
+        .md-body strong { font-weight: 600; }
+        #help-readme-toolbar { display:flex; align-items:center; gap:10px;
+                               margin-bottom:14px; }
       </style>
 
-      <details class="help-details" open>
-        <summary>🚀 Quick start</summary>
-        <div class="hbody">
-          <ol>
-            <li>Fork or clone <strong>bits-console</strong> into your GitHub organisation and enable
-                <strong>Settings → Pages → Deploy from branch (main / root)</strong>.</li>
-            <li>Edit <code>ui-config.yaml</code> in the repo root — set <code>cvmfs_repo</code>,
-                <code>cvmfs_prefix</code>, and <code>platforms</code>.</li>
-            <li>Open <code>https://&lt;org&gt;.github.io/bits-console/</code> in your browser.</li>
-            <li>Click <strong>Connect</strong> in the header and paste a GitHub PAT
-                (see <em>Personal Access Token</em> below).</li>
-            <li>Go to <strong>Settings → Providers</strong> and select the recipe repositories
-                you want to build from.</li>
-            <li>Register self-hosted runners on your build, ingest, and CVMFS hosts
-                (see <em>Runner setup</em> below).</li>
-            <li>Add the required secrets to the repository
-                (see <em>Repository secrets</em> below).</li>
-            <li>Return to <strong>Packages</strong>, pick a recipe, and click
-                <strong>Build &amp; Publish</strong>.</li>
-          </ol>
+      <div id="help-readme-toolbar">
+        <div class="page-title" style="margin:0;flex:1;">Help &amp; Setup Guide</div>
+        <a id="help-gh-link" href="#" target="_blank"
+           class="btn btn-outline btn-sm" style="font-size:12px;">
+          View on GitHub ↗
+        </a>
+        <a id="help-ref-link" href="#" target="_blank"
+           class="btn btn-outline btn-sm" style="font-size:12px;">
+          REFERENCE.md ↗
+        </a>
+      </div>
+
+      <div id="help-readme-content">
+        <div id="help-loading" style="color:var(--c-muted);padding:20px 0;font-size:13px;">
+          Loading documentation…
         </div>
-      </details>
-
-      <details class="help-details">
-        <summary>📄 ui-config.yaml reference</summary>
-        <div class="hbody">
-          <p>Create or edit <code>ui-config.yaml</code> in the repository root.
-             <strong>All values in this file are public</strong> — never put secrets here.</p>
-          <table class="ref">
-            <tr><td>title</td><td>Page title shown in the header (default: <em>bits Console</em>).</td></tr>
-            <tr><td>subtitle</td><td>Subtitle shown beneath the title.</td></tr>
-            <tr><td>cvmfs_repo</td><td>CVMFS repository name, e.g. <code>sft.cern.ch</code>.</td></tr>
-            <tr><td>cvmfs_prefix</td><td>Absolute root path on CVMFS where packages are installed,
-                e.g. <code>/cvmfs/sft.cern.ch/lcg/releases</code>.</td></tr>
-            <tr><td>platforms</td><td>YAML list of build platform labels offered in the
-                build dialog, e.g. <code>x86_64-el9</code>, <code>aarch64-el9</code>.</td></tr>
-            <tr><td>publish_workflow</td><td>Filename of the build+publish workflow (default:
-                <code>cvmfs-publish.yml</code>).</td></tr>
-            <tr><td>recipe_repos</td><td>Initial list of recipe repositories.
-                Overridden by the provider selection in Settings.</td></tr>
-          </table>
-          <pre>title: LCG Software Console
-subtitle: CERN EP-SFT
-cvmfs_repo: sft.cern.ch
-cvmfs_prefix: /cvmfs/sft.cern.ch/lcg/releases
-platforms:
-  - x86_64-el9
-  - x86_64-el8
-  - aarch64-el9
-publish_workflow: cvmfs-publish.yml
-recipe_repos: []</pre>
-        </div>
-      </details>
-
-      <details class="help-details">
-        <summary>🔑 Personal Access Token (PAT)</summary>
-        <div class="hbody">
-          <p>The console requires a GitHub PAT to call the GitHub API on your behalf.
-             The token is stored in the browser only (never sent to any server other than
-             <code>api.github.com</code>).</p>
-          <h4>Required scopes</h4>
-          <ul>
-            <li><code>repo</code> — read ui-config.yaml, recipe files, and cvmfs-status.json</li>
-            <li><code>workflow</code> — trigger and cancel GitHub Actions runs</li>
-          </ul>
-          <h4>Create a token</h4>
-          <ol>
-            <li>Go to <strong>GitHub → Settings → Developer settings → Personal access tokens →
-                Tokens (classic)</strong>.</li>
-            <li>Click <strong>Generate new token (classic)</strong>.</li>
-            <li>Select the <code>repo</code> and <code>workflow</code> checkboxes.</li>
-            <li>Set an expiry, generate, and copy the token.</li>
-            <li>Paste it into the <strong>Connect</strong> dialog in the console header.</li>
-          </ol>
-          <p>Use <strong>Settings → Persistence → Export config</strong> to save the token
-             to a file so you don't need to re-enter it on every visit.</p>
-        </div>
-      </details>
-
-      <details class="help-details">
-        <summary>🏃 Self-hosted runner setup</summary>
-        <div class="hbody">
-          <p>The publishing pipeline uses three runner types, each registered in
-             <strong>Settings → Actions → Runners</strong> in the bits-console repository.</p>
-
-          <h4>1 · Build runner — <code>bits-build-&lt;platform&gt;</code></h4>
-          <p>One runner per target platform (e.g. <code>bits-build-x86_64-el9</code>).</p>
-          <ul>
-            <li>OS: the target Linux distribution (EL9, EL8, …)</li>
-            <li>Must have <code>bits</code> CLI installed and on <code>PATH</code></li>
-            <li>Must have SSH access to the ingestion host (for <code>rsync</code>)</li>
-            <li>Runner labels: <code>self-hosted</code>, <code>bits-build-&lt;platform&gt;</code></li>
-          </ul>
-          <pre># Register on the build host:
-cd /opt/actions-runner
-./config.sh --url https://github.com/&lt;org&gt;/bits-console \
-            --token &lt;RUNNER_TOKEN&gt; \
-            --labels "self-hosted,bits-build-x86_64-el9" \
-            --unattended
-./svc.sh install &amp;&amp; ./svc.sh start</pre>
-
-          <h4>2 · Ingest runner — <code>bits-ingest</code></h4>
-          <ul>
-            <li>Host where <code>cvmfs-ingest</code> (the Go daemon) is installed</li>
-            <li>Needs access to the spool directory and the object store</li>
-            <li>Runner labels: <code>self-hosted</code>, <code>bits-ingest</code></li>
-          </ul>
-
-          <h4>3 · Publisher runner — <code>bits-cvmfs-publisher</code></h4>
-          <ul>
-            <li>Host with CVMFS stratum-0 access (can open catalog transactions)</li>
-            <li>Must have <code>cvmfs_server</code> CLI available</li>
-            <li>Runner labels: <code>self-hosted</code>, <code>bits-cvmfs-publisher</code></li>
-          </ul>
-        </div>
-      </details>
-
-      <details class="help-details">
-        <summary>🔒 Repository secrets</summary>
-        <div class="hbody">
-          <p>Add these in <strong>Settings → Secrets and variables → Actions</strong>
-             inside the bits-console repository.</p>
-          <table class="ref">
-            <tr><td>SPOOL_SSH_KEY</td><td>SSH private key (PEM) for the build runner to
-                rsync the staged tree to the ingestion host.</td></tr>
-            <tr><td>SPOOL_USER</td><td>SSH username on the ingestion host.</td></tr>
-            <tr><td>SPOOL_HOST</td><td>Hostname or IP of the ingestion host.</td></tr>
-            <tr><td>SPOOL_PATH</td><td>Absolute path to the spool root directory on the
-                ingestion host.</td></tr>
-            <tr><td>CVMFS_REPO</td><td>CVMFS repository name (e.g. <code>sft.cern.ch</code>).
-                Used by <code>cvmfs-publish.sh</code> on the stratum-0 runner.</td></tr>
-          </table>
-          <p>Optional repository <em>variables</em> (Settings → Secrets → Variables):</p>
-          <table class="ref">
-            <tr><td>BITS_CONFIG_REPO</td><td>Default <code>owner/repo</code> for the recipe
-                config directory when not supplied by the build dialog.</td></tr>
-            <tr><td>CVMFS_BACKEND_TYPE</td><td><code>local</code> (default) or <code>s3</code></td></tr>
-            <tr><td>CVMFS_BACKEND_PATH</td><td>Path or bucket URL for the object store.</td></tr>
-            <tr><td>INGEST_CONCURRENCY</td><td>Worker threads for cvmfs-ingest (0 = auto).</td></tr>
-          </table>
-        </div>
-      </details>
-
-      <details class="help-details">
-        <summary>📦 Recipe providers</summary>
-        <div class="hbody">
-          <p>The Packages tab is populated from <em>recipe repositories</em> — Git repos that
-             contain <code>.sh</code> files with bits YAML front matter.</p>
-          <h4>Provider registry</h4>
-          <p>Available providers are fetched from
-             <code>bitsorg/bits-providers/registry.json</code> (public repo).
-             Each entry resolves to a GitHub <code>owner/repo</code> via the
-             <code>homepage</code> URL field when the <code>owner</code> field contains
-             a display name rather than a plain GitHub slug.</p>
-          <h4>Recipe file format</h4>
-          <pre>package: ROOT
-version: 6.30.08
-description: Data Analysis Framework
-homepage: https://root.cern
-license: LGPL-2.1
-requires:
-  - Python
-  - libpng
----
-# Bash build script follows the --- separator
-cmake -DCMAKE_INSTALL_PREFIX="$INSTALLROOT" ...</pre>
-          <h4>Adding a provider not in the registry</h4>
-          <p>Go to <strong>Settings → Providers → Add a repository not in the registry</strong>
-             and enter the GitHub owner, repository name, and branch.</p>
-        </div>
-      </details>
-
-      <details class="help-details">
-        <summary>📅 Scheduled builds</summary>
-        <div class="hbody">
-          <ol>
-            <li>Go to the <strong>Schedules</strong> tab and click <strong>+ New schedule file</strong>.</li>
-            <li>Set a name (e.g. <code>nightly.json</code>), a cron expression for documentation,
-                and an optional description.</li>
-            <li>Click <strong>+ Add entry</strong> to add packages — fill in the package name,
-                version (blank = latest), platform, and CVMFS target path.</li>
-            <li>Enable individual entries with the checkbox and enable the file with the
-                <strong>Enable</strong> button.</li>
-            <li>The <code>scheduled-build.yml</code> workflow runs daily at 02:00 UTC and
-                dispatches <code>cvmfs-publish.yml</code> for every enabled entry in every
-                enabled schedule file.</li>
-            <li>Use <strong>workflow_dispatch</strong> on <code>scheduled-build.yml</code> to
-                run manually and use the <code>dry_run</code> input to preview without
-                actually triggering builds.</li>
-          </ol>
-          <p>The cron expression stored in the JSON file is informational only.
-             To change the actual trigger schedule, edit the <code>schedule: - cron:</code>
-             line in <code>.github/workflows/scheduled-build.yml</code>.</p>
-        </div>
-      </details>
-
-      <details class="help-details">
-        <summary>🔧 Troubleshooting</summary>
-        <div class="hbody">
-          <table class="ref">
-            <tr><td>"Workflow not found"</td><td>Check that <code>publish_workflow</code> in
-                <code>ui-config.yaml</code> matches the actual workflow filename in
-                <code>.github/workflows/</code>.</td></tr>
-            <tr><td>Empty package list</td><td>No providers selected — go to
-                <strong>Settings → Providers</strong> and enable at least one. If a selected
-                provider still shows zero packages, verify the GitHub slug is correct
-                (hover over the → arrow in the provider row).</td></tr>
-            <tr><td>Wrong packages from a provider</td><td>The <code>homepage</code> field in
-                <code>bitsorg/bits-providers/registry.json</code> controls which GitHub repo
-                is fetched. Check that the resolved path (shown after → in the provider row)
-                matches the intended repo.</td></tr>
-            <tr><td>Authentication error</td><td>Regenerate the PAT with <code>repo</code>
-                and <code>workflow</code> scopes. Use <strong>Connect</strong> in the header
-                to update it.</td></tr>
-            <tr><td>Build stuck / no runner</td><td>Verify the self-hosted runner is online
-                and the label exactly matches the platform, e.g.
-                <code>bits-build-x86_64-el9</code>.</td></tr>
-            <tr><td>Pages deploy counted as build</td><td>Ensure you are running the latest
-                version of bits-console — older versions fetched all workflow runs instead of
-                scoping to <code>cvmfs-publish.yml</code>.</td></tr>
-          </table>
-        </div>
-      </details>
+      </div>
     </div>
 
     <!-- Settings ──────────────────────────────────────────────────────── -->
@@ -795,6 +604,18 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALLROOT" ...</pre>
           section below to keep them across browser sessions.
         </p>
         <div id="provider-summary" class="alert alert-warn">Loading providers…</div>
+
+        <!-- Active provider order (search priority) -->
+        <div class="box" style="margin-bottom:12px;">
+          <div class="box-header" style="padding:8px 14px;">
+            <span class="box-title" style="font-size:13px;">Search order</span>
+            <span style="font-size:11px;color:var(--c-muted);">
+              When the same package exists in multiple providers, the first match wins.
+            </span>
+          </div>
+          <div id="provider-order" style="padding:6px 14px;"></div>
+        </div>
+
         <div class="box" style="margin-bottom:16px;">
           <div class="box-header" style="padding:8px 14px;">
             <span class="box-title" style="font-size:13px;">Available providers</span>
@@ -834,17 +655,42 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALLROOT" ...</pre>
 
       <!-- Secrets reference -->
       <div class="settings-section">
-        <h3>Workflow secrets required</h3>
-        <div class="alert alert-info">
-          Configure these in <strong>Settings → Secrets and variables → Actions</strong>
-          in the repository.
+        <h3>Workflow secrets</h3>
+        <p style="font-size:13px;color:var(--c-muted);margin-bottom:12px;">
+          In <strong>agnostic runner mode</strong> (recommended) the values below are
+          supplied via <code>bits.rc</code> from <code>ui-config.yaml</code> and the SSH key
+          is stored on the runner machine.  GitHub secrets are only needed as a fallback
+          for legacy single-repo runner setups.
+        </p>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          Configure in <strong>Settings → Secrets and variables → Actions</strong> in the repository.
         </div>
         <table class="kv-table">
-          <tr><td>SPOOL_SSH_KEY</td><td>SSH private key for rsync to the ingestion host</td></tr>
-          <tr><td>SPOOL_USER</td><td>SSH username on the ingestion host</td></tr>
-          <tr><td>SPOOL_HOST</td><td>Ingestion host address</td></tr>
-          <tr><td>SPOOL_PATH</td><td>Absolute spool root path on the ingestion host</td></tr>
-          <tr><td>CVMFS_REPO</td><td>CVMFS repository name (e.g. <code>sft.cern.ch</code>)</td></tr>
+          <tr>
+            <td>SPOOL_SSH_KEY</td>
+            <td>SSH private key for rsync to the ingestion host.
+              <em>Not needed when <code>ssh_key_file</code> is set in ui-config.yaml.</em></td>
+          </tr>
+          <tr>
+            <td>SPOOL_USER</td>
+            <td>SSH username on the ingestion host.
+              <em>Not needed when <code>spool_user</code> is set in ui-config.yaml.</em></td>
+          </tr>
+          <tr>
+            <td>SPOOL_HOST</td>
+            <td>Ingestion host address.
+              <em>Not needed when <code>spool_host</code> is set in ui-config.yaml.</em></td>
+          </tr>
+          <tr>
+            <td>SPOOL_PATH</td>
+            <td>Absolute spool root path on the ingestion host.
+              <em>Not needed when <code>spool_path</code> is set in ui-config.yaml.</em></td>
+          </tr>
+          <tr>
+            <td>CVMFS_REPO</td>
+            <td>CVMFS repository name (e.g. <code>sft.cern.ch</code>).
+              <em>Not needed when <code>cvmfs_repo</code> is set in ui-config.yaml.</em></td>
+          </tr>
         </table>
       </div>
 
@@ -1351,6 +1197,51 @@ function removeItem(key) {
   try { localStorage.removeItem(key); } catch { /* storage blocked */ }
 }
 
+// ── Provider colour palette ────────────────────────────────────────────────
+// Each active provider is assigned a stable colour based on its position in
+// State.activeProviders.  Used in the provider list, package table badges,
+// and the dependency graph.
+const PROVIDER_PALETTE = [
+  { fill: '#dbeafe', stroke: '#3b82f6', dot: '#2563eb' }, // blue
+  { fill: '#fef3c7', stroke: '#f59e0b', dot: '#b45309' }, // amber
+  { fill: '#d1fae5', stroke: '#10b981', dot: '#047857' }, // green
+  { fill: '#fce7f3', stroke: '#ec4899', dot: '#be185d' }, // pink
+  { fill: '#ede9fe', stroke: '#8b5cf6', dot: '#6d28d9' }, // purple
+  { fill: '#ffedd5', stroke: '#f97316', dot: '#c2410c' }, // orange
+  { fill: '#cffafe', stroke: '#06b6d4', dot: '#0e7490' }, // cyan
+  { fill: '#f0fdf4', stroke: '#22c55e', dot: '#15803d' }, // lime
+];
+
+// Return the palette entry for the provider whose _source label matches,
+// or a neutral grey for unknown/missing providers.
+function providerPalette(sourceLabel) {
+  const idx = State.activeProviders.findIndex(
+    p => (p.name || `${p.owner}/${p.repo}`) === sourceLabel
+  );
+  return idx >= 0 ? PROVIDER_PALETTE[idx % PROVIDER_PALETTE.length]
+                  : { fill: '#f6f8fa', stroke: '#d0d7de', dot: '#6e7781' };
+}
+
+// Render a coloured source tag <span> for a given _source label.
+function sourceTag(src) {
+  if (!src) return '<span class="text-muted">—</span>';
+  const col = providerPalette(src);
+  return `<span class="tag" style="background:${col.fill};color:${col.dot};` +
+         `border:1px solid ${col.stroke};">${esc(src)}</span>`;
+}
+
+// Move an active provider up (-1) or down (+1) in the priority list.
+function moveProvider(index, dir) {
+  const arr = State.activeProviders;
+  const target = index + dir;
+  if (target < 0 || target >= arr.length) return;
+  [arr[index], arr[target]] = [arr[target], arr[index]];
+  storeItem('bits_active_providers', JSON.stringify(arr));
+  State._packagesLoaded = false;
+  renderProviders();
+  loadPackages();
+}
+
 // ── GitHub API ─────────────────────────────────────────────────────────────
 async function ghFetch(path, opts = {}) {
   const url = `https://api.github.com${path}`;
@@ -1401,6 +1292,30 @@ function parseSimpleYaml(text) {
     if (kv) { curKey = kv[1]; curList = null; const v = kv[2].trim().replace(/^['"]|['"]$/g, ''); out[curKey] = v || null; }
   }
   return out;
+}
+
+// ── bits.rc builder ────────────────────────────────────────────────────────
+// Constructs a bits.rc shell file from the runner_config fields in
+// ui-config.yaml and returns it base64-encoded so it can be passed as a
+// workflow_dispatch input.  Returns an empty string if config is absent.
+function buildBitsRc() {
+  const c = State.config || {};
+  const lines = ['# bits.rc — generated by bits Console from ui-config.yaml'];
+  const map = [
+    ['cvmfs_repo',   'BITS_CVMFS_REPO'],
+    ['cvmfs_prefix', 'BITS_CVMFS_PREFIX'],
+    ['spool_host',   'BITS_SPOOL_HOST'],
+    ['spool_user',   'BITS_SPOOL_USER'],
+    ['spool_path',   'BITS_SPOOL_PATH'],
+    ['ssh_key_file', 'BITS_SSH_KEY_FILE'],
+    ['config_repo',  'BITS_CONFIG_REPO'],
+  ];
+  for (const [cfgKey, envKey] of map) {
+    const val = (c[cfgKey] || '').trim();
+    if (val) lines.push(`${envKey}=${val}`);
+  }
+  if (lines.length === 1) return ''; // nothing to encode
+  return toBase64Unicode(lines.join('\n') + '\n');
 }
 
 // ── Load ui-config.yaml ────────────────────────────────────────────────────
@@ -1655,9 +1570,20 @@ function renderProviders() {
     const tags     = (p.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
     const key      = providerKey(p);
     const rowDomId = 'prov-row-' + key.replace(/[^a-z0-9]/gi, '_');
+    const pName    = p.name || ghRepo;
 
-    // Resolved path annotation: show → owner/repo when it differs from registry owner.
-    // Highlight in amber when overridden by the user.
+    // Colour dot for active providers (colour = position in activeProviders array).
+    const activeIdx = State.activeProviders.findIndex(
+      a => a.owner === ghOwner && a.repo === ghRepo
+    );
+    const colDot = active && activeIdx >= 0
+      ? `<span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;
+                      background:${PROVIDER_PALETTE[activeIdx % PROVIDER_PALETTE.length].dot};
+                      title="Priority ${activeIdx + 1}"></span>`
+      : `<span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;
+                      background:var(--c-border);"></span>`;
+
+    // Resolved path annotation.
     let resolvedNote = '';
     if (p._overridden) {
       resolvedNote = `<span style="color:#d29922;font-size:11px;margin-left:6px;">
@@ -1670,12 +1596,13 @@ function renderProviders() {
     return `<div style="border-bottom:1px solid var(--c-border);">
       <label class="provider-row" style="display:flex;align-items:flex-start;gap:10px;
           padding:10px 14px;cursor:pointer;">
+        ${colDot}
         <input type="checkbox" style="margin-top:3px;width:auto;"
           ${active ? 'checked' : ''}
-          onchange="toggleProvider('${esc(ghOwner)}','${esc(ghRepo)}','${esc(p.branch||'main')}','${esc(p.name||ghRepo)}',this.checked)">
+          onchange="toggleProvider('${esc(ghOwner)}','${esc(ghRepo)}','${esc(p.branch||'main')}','${esc(pName)}',this.checked)">
         <div style="flex:1;min-width:0;" id="${rowDomId}">
           <div style="font-weight:600;font-size:13px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
-            ${esc(p.name || ghRepo)}
+            ${esc(pName)}
             <span class="mono" style="font-weight:400;font-size:11px;color:var(--c-muted);">
               ${esc(p.owner||ghOwner)}/${esc(p.repo||ghRepo)}
             </span>
@@ -1698,10 +1625,58 @@ function renderProviderSummary() {
   const el2 = el('provider-summary');
   if (!el2) return;
   const n = State.activeProviders.length;
-  el2.textContent = n
-    ? `${n} provider${n>1?'s':''} active — packages from: ${State.activeProviders.map(p=>p.name||p.repo).join(', ')}`
-    : 'No providers selected — the Packages tab will be empty.';
-  el2.className = n ? 'alert alert-ok' : 'alert alert-warn';
+  if (!n) {
+    el2.innerHTML = 'No providers selected — the Packages tab will be empty.';
+    el2.className = 'alert alert-warn';
+    return;
+  }
+  const dots = State.activeProviders.map((p, i) => {
+    const col = PROVIDER_PALETTE[i % PROVIDER_PALETTE.length];
+    return `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px;">
+      <span style="width:10px;height:10px;border-radius:50%;background:${col.dot};flex-shrink:0;"></span>
+      <span>${esc(p.name || p.repo)}</span>
+    </span>`;
+  }).join('');
+  el2.innerHTML = `<span style="font-weight:600;">${n} provider${n>1?'s':''} active</span>
+    <span style="color:var(--c-muted);margin:0 6px;">·</span>
+    <span style="font-size:12px;">${dots}</span>`;
+  el2.className = 'alert alert-ok';
+
+  // Also refresh the order panel if it's visible.
+  renderProviderOrder();
+}
+
+// Renders the compact ordered list of active providers with ↑↓ reorder buttons.
+// The order defines recipe search priority: when the same package name exists in
+// multiple providers the first (topmost) match is used.
+function renderProviderOrder() {
+  const panel = el('provider-order');
+  if (!panel) return;
+  const ap = State.activeProviders;
+  if (!ap.length) {
+    panel.innerHTML = '<div style="font-size:12px;color:var(--c-muted);padding:4px 0;">No providers selected.</div>';
+    return;
+  }
+  panel.innerHTML = ap.map((p, i) => {
+    const col   = PROVIDER_PALETTE[i % PROVIDER_PALETTE.length];
+    const name  = esc(p.name || p.repo);
+    const isFirst = i === 0;
+    const isLast  = i === ap.length - 1;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;
+                         border-bottom:${isLast ? 'none' : '1px solid var(--c-border)'};">
+      <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${col.dot};"></span>
+      <span style="font-size:12px;font-weight:600;color:var(--c-fg);flex:1;min-width:0;
+                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+            title="${name}">${name}</span>
+      <span style="font-size:11px;color:var(--c-muted);margin-right:4px;">priority ${i + 1}</span>
+      <button class="btn btn-outline btn-sm" style="padding:1px 7px;font-size:12px;line-height:1.4;"
+        ${isFirst ? 'disabled' : ''}
+        onclick="moveProvider(${i}, -1)" title="Increase priority (move up)">↑</button>
+      <button class="btn btn-outline btn-sm" style="padding:1px 7px;font-size:12px;line-height:1.4;"
+        ${isLast ? 'disabled' : ''}
+        onclick="moveProvider(${i}, 1)" title="Decrease priority (move down)">↓</button>
+    </div>`;
+  }).join('');
 }
 
 function applyConfig() {
@@ -1754,6 +1729,67 @@ function setAuthStatus(ok, label = '') {
   el('auth-btn').textContent = ok ? 'Change' : 'Connect';
 }
 
+// ── Help (README.md renderer) ──────────────────────────────────────────────
+
+// Load marked.js from CDN on first use.
+function ensureMarked() {
+  if (window.marked) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js';
+    s.onload  = resolve;
+    s.onerror = () => reject(new Error('Could not load marked.js from CDN'));
+    document.head.appendChild(s);
+  });
+}
+
+async function loadHelp() {
+  if (State._helpLoaded) return;
+
+  const content = el('help-readme-content');
+  if (!content) return;
+
+  // Update GitHub links even before fetching (best-effort).
+  const base = State.owner && State.repo
+    ? `https://github.com/${State.owner}/${State.repo}/blob/main`
+    : 'https://github.com/bitsorg/bits-console/blob/main';
+  const ghLink  = el('help-gh-link');
+  const refLink = el('help-ref-link');
+  if (ghLink)  ghLink.href  = `${base}/README.md`;
+  if (refLink) refLink.href = `${base}/REFERENCE.md`;
+
+  // Require a configured repo before fetching.
+  if (!State.owner || !State.repo) {
+    content.innerHTML =
+      `<div style="color:var(--c-muted);font-size:13px;padding:12px 0;">
+         Connect to a repository first, then re-open Help.
+       </div>`;
+    return;
+  }
+
+  try {
+    await ensureMarked();
+    const data = await ghGet(`/repos/${State.owner}/${State.repo}/contents/README.md`);
+    const md   = atob(data.content.replace(/[\r\n]/g, ''));
+
+    // Configure marked: sanitize is removed in v9+; use default safe renderer.
+    window.marked.setOptions({ gfm: true, breaks: false });
+
+    content.innerHTML = `<div class="md-body">${window.marked.parse(md)}</div>`;
+    State._helpLoaded = true;
+  } catch (e) {
+    content.innerHTML =
+      `<div style="font-size:13px;">
+         <p style="color:var(--c-muted);margin-bottom:12px;">
+           Could not load README.md — ${esc(e.message)}.
+         </p>
+         <a href="${esc(base + '/README.md')}" target="_blank" class="btn btn-outline">
+           📖 View README on GitHub ↗
+         </a>
+       </div>`;
+  }
+}
+
 // ── Navigation ─────────────────────────────────────────────────────────────
 function nav(tab) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -1766,7 +1802,7 @@ function nav(tab) {
   if (tab === 'cvmfs')     loadCvmfsStatus();
   if (tab === 'schedules') loadSchedules();
   if (tab === 'settings')  renderSettings();
-  if (tab === 'help')      {/* static */}
+  if (tab === 'help')      loadHelp();
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
@@ -1930,7 +1966,7 @@ function filterPackages() {
         </a>
       </td>
       <td><span class="pkg-version">${esc(p.version)}</span></td>
-      <td><span class="tag" style="background:#f0f7ff;color:#0550ae;">${esc(p._source||'')}</span></td>
+      <td>${sourceTag(p._source)}</td>
       <td><span class="pkg-desc" title="${esc(p.description)}">${esc(p.description)}</span></td>
       <td>${p.patches.length ? `<span class="badge badge-success">${p.patches.length} patch${p.patches.length>1?'es':''}</span>` : '<span class="text-muted">—</span>'}</td>
       <td>${cvmfsStatusBadge(p.cvmfsStatus)}</td>
@@ -1989,7 +2025,9 @@ async function triggerBuild() {
   const jobs       = el('bm-jobs').value.trim() || '0';
   const config_dir = el('bm-config-dir').value.trim();
   const extra_args = el('bm-extra-args').value.trim();
-  const wf         = (State.config || {}).publish_workflow || 'cvmfs-publish.yml';
+  const wf           = (State.config || {}).publish_workflow || 'cvmfs-publish.yml';
+  const bits_rc      = buildBitsRc();
+  const runner_group = ((State.config || {}).runner_group || '').trim();
 
   if (!pkg)    { showBmError('Package name is required.'); return; }
   if (!target) { showBmError('CVMFS target path is required.'); return; }
@@ -2004,6 +2042,8 @@ async function triggerBuild() {
           version:          ver,
           platform:         plat,
           cvmfs_target:     target,
+          bits_rc:          bits_rc,
+          runner_group:     runner_group,
           rebuild:          String(rebuild),
           no_deps:          String(no_deps),
           debug:            String(debug),
@@ -2035,14 +2075,19 @@ function showPackageDetail(pkgName) {
   State._detailPkg = pkg;
 
   el('pd-title').textContent    = pkg.name;
-  el('pd-subtitle').textContent = `${pkg._source || ''} • ${pkg._path || ''}`;
+  const _src = pkg._source || '';
+  const _col = _src ? providerPalette(_src).dot : 'var(--c-muted)';
+  el('pd-subtitle').innerHTML =
+    (_src ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;`+
+            `background:${_col};margin-right:5px;vertical-align:middle;"></span>` : '') +
+    esc(_src) + (_src && pkg._path ? ' • ' : '') + esc(pkg._path || '');
   el('pd-build-btn').onclick    = () => buildFromDetail();
 
   // Metadata table
   const skipKeys = new Set(['package', 'version', 'description', 'patches', 'requires']);
   const metaRows = [
     ['Version',     `<span class="mono">${esc(pkg.version)}</span>`],
-    ['Source',      `<span class="tag" style="background:#f0f7ff;color:#0550ae;">${esc(pkg._source||'')}</span>`],
+    ['Source',      sourceTag(pkg._source)],
     ['CVMFS',       cvmfsStatusBadge(pkg.cvmfsStatus)],
     ['Description', esc(pkg.description) || '<span class="text-muted">—</span>'],
     pkg.homepage ? ['Homepage', `<a href="${esc(pkg.homepage)}" target="_blank">${esc(pkg.homepage)}</a>`] : null,
@@ -2426,6 +2471,10 @@ function renderSettings() {
     <tr><td>CVMFS prefix</td><td><code>${c.cvmfs_prefix||'—'}</code></td></tr>
     <tr><td>Platforms</td><td>${getPlatforms().map(p=>`<code>${p}</code>`).join(' ')}</td></tr>
     <tr><td>Workflow</td><td><code>${c.publish_workflow||'cvmfs-publish.yml'}</code></td></tr>
+    <tr><td>Runner group</td><td>${c.runner_group ? `<code>${esc(c.runner_group)}</code>` : '<span style="color:var(--c-muted)">any (unset)</span>'}</td></tr>
+    <tr><td>Spool</td><td><code>${esc((c.spool_user||'?')+'@'+(c.spool_host||'?')+':'+(c.spool_path||'?'))}</code></td></tr>
+    <tr><td>SSH key file</td><td>${c.ssh_key_file ? `<code>${esc(c.ssh_key_file)}</code>` : '<span style="color:var(--c-muted)">unset — using SPOOL_SSH_KEY secret</span>'}</td></tr>
+    <tr><td>Config repo</td><td>${c.config_repo ? `<code>${esc(c.config_repo)}</code>` : '<span style="color:var(--c-muted)">unset — using BITS_CONFIG_REPO variable</span>'}</td></tr>
   `;
   // Show editable repo panel only for local dev
   const editPanel = el('settings-repo-edit');
@@ -2618,20 +2667,38 @@ function addManualProvider() {
 // Recursively build a tree node for pkgName from the in-memory package list.
 // visited  — Set of names already on the current path (cycle detection)
 // maxDepth — safety limit to prevent unbounded recursion
+// Return the highest-priority package for a given name.
+// Priority = position in State.activeProviders (lower index = higher priority).
+function findPkg(pkgName) {
+  const matches = State.packages.filter(p => p.name === pkgName);
+  if (!matches.length) return null;
+  if (matches.length === 1) return matches[0];
+  return matches.sort((a, b) => {
+    const rank = p => {
+      const idx = State.activeProviders.findIndex(
+        ap => (ap.name || `${ap.owner}/${ap.repo}`) === p._source
+      );
+      return idx < 0 ? 9999 : idx;
+    };
+    return rank(a) - rank(b);
+  })[0];
+}
+
 function buildDepTree(pkgName, visited = new Set(), maxDepth = 10) {
   if (visited.has(pkgName))
-    return { name: pkgName, version: '', license: '', children: [], circular: true };
-  const pkg = State.packages.find(p => p.name === pkgName);
+    return { name: pkgName, version: '', license: '', source: null, children: [], circular: true };
+  const pkg = findPkg(pkgName);
   if (!pkg)
-    return { name: pkgName, version: '?',  license: '', children: [], missing: true };
+    return { name: pkgName, version: '?',  license: '', source: null, children: [], missing: true };
   if (maxDepth <= 0)
-    return { name: pkgName, version: pkg.version, license: '', children: [], truncated: true };
-  const next     = new Set([...visited, pkgName]);
-  const license  = pkg.fields?.license || pkg.fields?.License || pkg.fields?.licence || '';
+    return { name: pkgName, version: pkg.version, license: '', source: pkg._source || null, children: [], truncated: true };
+  const next    = new Set([...visited, pkgName]);
+  const license = pkg.fields?.license || pkg.fields?.License || pkg.fields?.licence || '';
   return {
     name:     pkg.name,
     version:  pkg.version,
     license,
+    source:   pkg._source || null,
     children: (pkg.requires || []).map(dep => buildDepTree(dep, next, maxDepth - 1)),
     circular: false,
     missing:  false,
@@ -2652,10 +2719,11 @@ function depTreeText(node, prefix = '', isLast = true, isRoot = true) {
   const connector  = isRoot ? '' : (isLast ? '└── ' : '├── ');
   const childPfx   = isRoot ? '' : (isLast ? '    ' : '│   ');
   const ver        = node.version && node.version !== '—' ? `  ${node.version}` : '';
-  const annotation = node.circular  ? '  [↩ circular dependency]'    :
+  const src        = node.source && !node.missing && !node.circular ? `  [${node.source}]` : '';
+  const annotation = node.circular  ? '  [↩ circular]'              :
                      node.missing   ? '  [? not in active providers]' :
                      node.truncated ? '  […depth limit reached]'      : '';
-  const line     = `${prefix}${connector}${node.name}${ver}${annotation}\n`;
+  const line     = `${prefix}${connector}${node.name}${ver}${src}${annotation}\n`;
   const children = (node.circular || node.truncated)
     ? ''
     : node.children.map((c, i) =>
@@ -2715,9 +2783,17 @@ function depTreeSvg(root) {
   }
   collect(root);
 
-  const nodeFill   = n => n.circular  ? '#ffd7d7' : n.missing   ? '#f0f0f0' : n.truncated ? '#fff3cd' : '#ddf4ff';
-  const nodeStroke = n => n.circular  ? '#f5a5a5' : n.missing   ? '#ccc'    : n.truncated ? '#fcd34d' : '#a3c8f5';
-  const textColor  = n => n.missing   ? '#888'    : '#24292e';
+  // Node colours: provider palette for known packages; status overrides for
+  // circular (red tint), missing (grey), truncated (amber).
+  const nodeFill   = n => n.circular  ? '#ffd7d7'
+                        : n.missing   ? '#f0f0f0'
+                        : n.truncated ? '#fff3cd'
+                        : (n.source ? providerPalette(n.source).fill   : '#ddf4ff');
+  const nodeStroke = n => n.circular  ? '#f5a5a5'
+                        : n.missing   ? '#ccc'
+                        : n.truncated ? '#fcd34d'
+                        : (n.source ? providerPalette(n.source).stroke : '#a3c8f5');
+  const textColor  = n => n.missing   ? '#888' : '#24292e';
 
   const edgeSvg = edges.map(({ x1, y1, x2, y2 }) => {
     const mx = (x1 + x2) / 2;
@@ -2729,9 +2805,11 @@ function depTreeSvg(root) {
     const label = n.name.length > 16 ? n.name.slice(0, 15) + '…' : n.name;
     const ver   = (n.version && n.version !== '—') ? n.version.slice(0, 18) : '';
     const icon  = n.circular ? ' ↩' : n.missing ? ' ?' : n.truncated ? ' …' : '';
+    // Dashed border for missing packages
+    const strokeDash = n.missing ? 'stroke-dasharray="4 2"' : '';
     return `<g>
       <rect x="${n.px}" y="${n.py}" width="${NW}" height="${NH}" rx="5"
-            fill="${nodeFill(n)}" stroke="${nodeStroke(n)}" stroke-width="1.2"/>
+            fill="${nodeFill(n)}" stroke="${nodeStroke(n)}" stroke-width="1.4" ${strokeDash}/>
       <text x="${n.px + 8}" y="${n.py + 12}" font-family="monospace" font-size="10.5"
             fill="${textColor(n)}" font-weight="${n._x === 0 ? 700 : 400}">
         ${esc(label)}${esc(icon)}
@@ -2741,8 +2819,46 @@ function depTreeSvg(root) {
     </g>`;
   }).join('');
 
-  return `<svg width="${W}" height="${H}" style="display:block; min-width:${W}px;">
-    ${edgeSvg}${nodeSvg}
+  // Legend — one swatch per active provider that appears in the tree, plus
+  // status entries for any special node types present.
+  const treeNodes   = flattenDeps(root);
+  const usedSources = [...new Set(treeNodes.map(n => n.source).filter(Boolean))];
+  const hasCircular = treeNodes.some(n => n.circular);
+  const hasMissing  = treeNodes.some(n => n.missing);
+  const hasTruncated = treeNodes.some(n => n.truncated);
+
+  const legendItems = [
+    ...usedSources.map(src => {
+      const col = providerPalette(src);
+      return { fill: col.fill, stroke: col.stroke, dash: false, label: src };
+    }),
+    ...(hasCircular  ? [{ fill: '#ffd7d7', stroke: '#f5a5a5', dash: false,  label: 'circular dependency' }] : []),
+    ...(hasMissing   ? [{ fill: '#f0f0f0', stroke: '#ccc',    dash: true,   label: 'not in active providers' }] : []),
+    ...(hasTruncated ? [{ fill: '#fff3cd', stroke: '#fcd34d', dash: false,  label: 'depth limit reached' }] : []),
+  ];
+
+  let legendSvg = '';
+  if (legendItems.length > 1) {
+    const LH = 22, LP = 10, SW = 14, SH = 12;
+    const LW = Math.max(...legendItems.map(it => it.label.length)) * 7 + SW + 28;
+    const totalH = legendItems.length * LH + LP * 2;
+    const lx = 8, ly = H + 8;
+    const swatches = legendItems.map((it, i) => {
+      const sy = ly + LP + i * LH;
+      const dash = it.dash ? 'stroke-dasharray="4 2"' : '';
+      return `<rect x="${lx + LP}" y="${sy}" width="${SW}" height="${SH}" rx="2"
+                    fill="${it.fill}" stroke="${it.stroke}" stroke-width="1.2" ${dash}/>
+              <text x="${lx + LP + SW + 8}" y="${sy + SH - 1}" font-family="sans-serif"
+                    font-size="10.5" fill="#444">${esc(it.label)}</text>`;
+    }).join('');
+    legendSvg = `<rect x="${lx}" y="${ly}" width="${LW}" height="${totalH}" rx="5"
+                       fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+                 ${swatches}`;
+  }
+
+  const totalH = H + (legendSvg ? legendItems.length * 22 + 28 : 0);
+  return `<svg width="${W}" height="${totalH}" style="display:block; min-width:${W}px;">
+    ${edgeSvg}${nodeSvg}${legendSvg}
   </svg>`;
 }
 
@@ -3231,6 +3347,7 @@ function showFetchError(targetId, err) {
 }
 
 function refreshAll() {
+  State._helpLoaded = false;   // force Help to re-fetch README for new repo
   loadConfig().then(() => {
     loadDashboard();
     loadPackages();
