@@ -1302,7 +1302,7 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALLROOT" ...</pre>
 (function migrateLocalStorage() {
   try {
     if (localStorage.getItem('bits_persist') === 'true') {
-      for (const k of ['gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers']) {
+      for (const k of ['gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers', 'bits_provider_overrides']) {
         const v = localStorage.getItem(k);
         if (v !== null) sessionStorage.setItem(k, v);
       }
@@ -1320,12 +1320,21 @@ const State = {
   cvmfsStatus:     [],     // from cvmfs-status.json
   providers:       [],     // all providers from bitsorg/bits-providers registry.json
   activeProviders: [],     // currently selected [{owner, repo, branch, name}]
-  schedules:       {},     // filename → { cron, description, enabled, entries, _sha }
+  schedules:          {},  // filename → { cron, description, enabled, entries, _sha }
+  providerOverrides:  {},  // providerKey → { owner, repo }  (user-set corrections)
   _packagesLoaded: false,  // true after first successful load; cleared when providers change
   buildPollTimer:  null,
   logPollTimer:    null,
   currentRunId:    null,
 };
+
+// Load provider overrides from storage immediately so loadProviders() can use them.
+(function loadProviderOverrides() {
+  try {
+    const raw = sessionStorage.getItem('bits_provider_overrides');
+    if (raw) State.providerOverrides = JSON.parse(raw);
+  } catch { /* ignore */ }
+})();
 
 // ── Storage helper ─────────────────────────────────────────────────────────
 // Write to sessionStorage always; also write to localStorage when persistence
@@ -1492,11 +1501,17 @@ async function loadProviders() {
     // Resolve the actual GitHub owner/repo from the homepage URL when the
     // owner field is a display name (contains spaces or slashes) rather than
     // a plain GitHub org slug.
-    State.providers = raw.map(p => ({
-      ...p,
-      _ghOwner: resolveGhOwner(p),
-      _ghRepo:  resolveGhRepo(p),
-    }));
+    State.providers = raw.map(p => {
+      const base = {
+        ...p,
+        _ghOwner: resolveGhOwner(p),
+        _ghRepo:  resolveGhRepo(p),
+      };
+      // Apply any user-set override for this provider.
+      const ov = State.providerOverrides[providerKey(base)];
+      if (ov) { base._ghOwner = ov.owner; base._ghRepo = ov.repo; base._overridden = true; }
+      return base;
+    });
   } catch(e) {
     console.warn('Could not load provider registry:', e.message);
     State.providers = [];
@@ -1523,6 +1538,80 @@ function resolveGhRepo(p) {
     if (m) return m[1].replace(/\.git$/, '');
   }
   return '';
+}
+
+// Stable key for a registry entry — based on the registry fields, not resolved ones,
+// so it survives re-resolution.
+function providerKey(p) {
+  return `${p.name || ''}|${p.owner || ''}|${p.repo || ''}`;
+}
+
+// Set or clear a manual override for a registry provider.
+function setProviderOverride(key, owner, repo) {
+  if (owner && repo) {
+    State.providerOverrides[key] = { owner: owner.trim(), repo: repo.trim() };
+  } else {
+    delete State.providerOverrides[key];
+  }
+  storeItem('bits_provider_overrides', JSON.stringify(State.providerOverrides));
+  // Re-apply overrides to the cached provider list without a full network round-trip.
+  State.providers = State.providers.map(p => {
+    if (providerKey(p) !== key) return p;
+    const ov = State.providerOverrides[key];
+    return ov
+      ? { ...p, _ghOwner: ov.owner, _ghRepo: ov.repo, _overridden: true }
+      : { ...p, _ghOwner: resolveGhOwner(p), _ghRepo: resolveGhRepo(p), _overridden: false };
+  });
+  // If this provider is currently active, update the active entry too.
+  State.activeProviders = State.activeProviders.map(a => {
+    const match = State.providers.find(p => providerKey(p) === key);
+    if (!match) return a;
+    const oldOwner = a.owner; const oldRepo = a.repo;
+    // Was this entry the one being overridden? Match on either old or new owner/repo.
+    const ov = State.providerOverrides[key];
+    const newOwner = ov ? ov.owner : (match._ghOwner || match.owner);
+    const newRepo  = ov ? ov.repo  : (match._ghRepo  || match.repo);
+    if (a.owner === oldOwner && a.repo === oldRepo) return { ...a, owner: newOwner, repo: newRepo };
+    return a;
+  });
+  storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
+  State._packagesLoaded = false;
+  renderProviders();
+  loadPackages();
+}
+
+function showOverrideForm(key, currentOwner, currentRepo) {
+  // Build a tiny inline form inside the provider row.
+  const rowId = 'override-form-' + key.replace(/[^a-z0-9]/gi, '_');
+  // Toggle: if already open, close it.
+  const existing = document.getElementById(rowId);
+  if (existing) { existing.remove(); return; }
+  const container = document.getElementById('prov-row-' + key.replace(/[^a-z0-9]/gi, '_'));
+  if (!container) return;
+  const div = document.createElement('div');
+  div.id = rowId;
+  div.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;';
+  div.innerHTML = `
+    <input id="ov-owner-${rowId}" type="text" placeholder="owner" value="${esc(currentOwner)}"
+           style="width:120px;font-size:12px;padding:3px 6px;background:var(--c-bg-2);
+                  border:1px solid var(--c-border);border-radius:4px;color:var(--c-fg);">
+    <span style="color:var(--c-muted);">/</span>
+    <input id="ov-repo-${rowId}" type="text" placeholder="repo" value="${esc(currentRepo)}"
+           style="width:160px;font-size:12px;padding:3px 6px;background:var(--c-bg-2);
+                  border:1px solid var(--c-border);border-radius:4px;color:var(--c-fg);">
+    <button class="btn btn-primary btn-sm" onclick="
+      setProviderOverride('${esc(key)}',
+        document.getElementById('ov-owner-${rowId}').value,
+        document.getElementById('ov-repo-${rowId}').value)">
+      Apply
+    </button>
+    <button class="btn btn-outline btn-sm" onclick="setProviderOverride('${esc(key)}','','')">
+      Reset
+    </button>
+    <button class="btn btn-outline btn-sm" onclick="document.getElementById('${rowId}').remove()">
+      ✕
+    </button>`;
+  container.appendChild(div);
 }
 
 function isProviderActive(p) {
@@ -1562,26 +1651,43 @@ function renderProviders() {
     const ghOwner  = p._ghOwner || p.owner;
     const ghRepo   = p._ghRepo  || p.repo;
     const tags     = (p.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
-    // Show display owner (from registry) + resolved GitHub path
-    const displayOwner = esc(p.owner || ghOwner);
-    const ghPath       = ghOwner !== p.owner ? `<span class="text-muted"> → ${esc(ghOwner)}/${esc(ghRepo)}</span>` : '';
-    return `<label class="provider-row" style="display:flex;align-items:flex-start;gap:10px;
-        padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--c-border);">
-      <input type="checkbox" style="margin-top:3px;width:auto;"
-        ${active ? 'checked' : ''}
-        onchange="toggleProvider('${esc(ghOwner)}','${esc(ghRepo)}','${esc(p.branch||'main')}','${esc(p.name||ghRepo)}',this.checked)">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:13px;">
-          ${esc(p.name || ghRepo)}
-          <span class="mono text-muted" style="font-weight:400;font-size:11px;margin-left:6px;">
-            ${displayOwner}/${esc(ghRepo)}${ghPath}
-          </span>
+    const key      = providerKey(p);
+    const rowDomId = 'prov-row-' + key.replace(/[^a-z0-9]/gi, '_');
+
+    // Resolved path annotation: show → owner/repo when it differs from registry owner.
+    // Highlight in amber when overridden by the user.
+    let resolvedNote = '';
+    if (p._overridden) {
+      resolvedNote = `<span style="color:#d29922;font-size:11px;margin-left:6px;">
+        ⚠ overridden → ${esc(ghOwner)}/${esc(ghRepo)}</span>`;
+    } else if (ghOwner !== p.owner || ghRepo !== p.repo) {
+      resolvedNote = `<span style="color:var(--c-muted);font-size:11px;margin-left:6px;">
+        → ${esc(ghOwner)}/${esc(ghRepo)}</span>`;
+    }
+
+    return `<div style="border-bottom:1px solid var(--c-border);">
+      <label class="provider-row" style="display:flex;align-items:flex-start;gap:10px;
+          padding:10px 14px;cursor:pointer;">
+        <input type="checkbox" style="margin-top:3px;width:auto;"
+          ${active ? 'checked' : ''}
+          onchange="toggleProvider('${esc(ghOwner)}','${esc(ghRepo)}','${esc(p.branch||'main')}','${esc(p.name||ghRepo)}',this.checked)">
+        <div style="flex:1;min-width:0;" id="${rowDomId}">
+          <div style="font-weight:600;font-size:13px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
+            ${esc(p.name || ghRepo)}
+            <span class="mono" style="font-weight:400;font-size:11px;color:var(--c-muted);">
+              ${esc(p.owner||ghOwner)}/${esc(p.repo||ghRepo)}
+            </span>
+            ${resolvedNote}
+            <button class="btn btn-outline btn-sm" style="font-size:10px;padding:1px 6px;margin-left:4px;"
+              onclick="event.preventDefault();showOverrideForm('${esc(key)}','${esc(ghOwner)}','${esc(ghRepo)}')"
+              title="Override the GitHub owner/repo used to fetch recipes">✎ override</button>
+          </div>
+          <div style="font-size:12px;color:var(--c-muted);margin-top:2px;">${esc(p.description||'')}</div>
+          <div style="margin-top:4px;">${tags}</div>
         </div>
-        <div style="font-size:12px;color:var(--c-muted);margin-top:2px;">${esc(p.description||'')}</div>
-        <div style="margin-top:4px;">${tags}</div>
-      </div>
-      ${p.homepage ? `<a href="${esc(p.homepage)}" target="_blank" style="font-size:11px;color:var(--c-info);white-space:nowrap;">GitHub ↗</a>` : ''}
-    </label>`;
+        ${p.homepage ? `<a href="${esc(p.homepage)}" target="_blank" style="font-size:11px;color:var(--c-info);white-space:nowrap;margin-left:4px;">GitHub ↗</a>` : ''}
+      </label>
+    </div>`;
   }).join('');
   renderProviderSummary();
 }
@@ -2383,14 +2489,14 @@ function togglePersistence(enabled) {
     if (enabled) {
       localStorage.setItem('bits_persist', 'true');
       // Immediately push current session values into localStorage.
-      const keys = ['gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers'];
+      const keys = ['gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers', 'bits_provider_overrides'];
       for (const k of keys) {
         const v = sessionStorage.getItem(k);
         if (v !== null) localStorage.setItem(k, v);
       }
     } else {
       // Remove the flag and all persisted values.
-      ['bits_persist', 'gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers']
+      ['bits_persist', 'gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers', 'bits_provider_overrides']
         .forEach(k => localStorage.removeItem(k));
     }
   } catch { /* private-browsing */ }
@@ -2399,11 +2505,12 @@ function togglePersistence(enabled) {
 
 function exportConfig() {
   const cfg = {
-    _version: 1,
-    owner:    State.owner,
-    repo:     State.repo,
-    token:    State.token,
-    providers: State.activeProviders,
+    _version:          1,
+    owner:             State.owner,
+    repo:              State.repo,
+    token:             State.token,
+    providers:         State.activeProviders,
+    providerOverrides: State.providerOverrides,
   };
   const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
   const a    = document.createElement('a');
@@ -2433,6 +2540,18 @@ function importConfig(input) {
         State.repo  = cfg.repo;
         storeItem('bits_owner', cfg.owner);
         storeItem('bits_repo',  cfg.repo);
+      }
+      // Apply provider overrides (before active providers so resolution is correct)
+      if (cfg.providerOverrides && typeof cfg.providerOverrides === 'object') {
+        State.providerOverrides = cfg.providerOverrides;
+        storeItem('bits_provider_overrides', JSON.stringify(State.providerOverrides));
+        // Re-apply overrides to cached provider list
+        State.providers = State.providers.map(p => {
+          const ov = State.providerOverrides[providerKey(p)];
+          return ov
+            ? { ...p, _ghOwner: ov.owner, _ghRepo: ov.repo, _overridden: true }
+            : { ...p, _ghOwner: resolveGhOwner(p), _ghRepo: resolveGhRepo(p), _overridden: false };
+        });
       }
       // Apply providers
       if (Array.isArray(cfg.providers) && cfg.providers.length) {
