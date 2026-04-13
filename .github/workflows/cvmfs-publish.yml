@@ -1,0 +1,431 @@
+# CVMFS publishing pipeline for bits packages
+#
+# Triggered via workflow_dispatch from the web UI (SPA) or manually.
+# Three sequential jobs:
+#
+#   build    — runs on the platform-specific self-hosted runner, calls
+#              "bits build" then "bits publish" to copy, relocate, and stream
+#              the installed tree to the ingestion spool.
+#
+#   ingest   — runs on the ingestion runner, invokes cvmfs-ingest in --once
+#              mode to compress, hash, upload blobs, and emit the manifest.
+#
+#   publish  — runs on the CVMFS stratum-0 runner, calls cvmfs-publish.sh
+#              to open a catalog-only transaction using the pre-staged grafts.
+#
+# Configuration delivery — bits.rc
+# ─────────────────────────────────
+# All experiment-specific, non-secret configuration is delivered via the
+# `bits_rc` input (a base64-encoded shell key=value file).  The build job
+# writes it to ~/.bits.rc before invoking bits.  This makes runners
+# completely repository/experiment agnostic: the same runner pool can serve
+# multiple experiments, each dispatching its own bits.rc.
+#
+# A bits.rc typically contains:
+#   BITS_CVMFS_REPO=sft.cern.ch
+#   BITS_CVMFS_PREFIX=/cvmfs/sft.cern.ch/lcg/releases
+#   BITS_SPOOL_HOST=ingestion.example.org
+#   BITS_SPOOL_USER=bits
+#   BITS_SPOOL_PATH=/var/spool/bits
+#   BITS_SSH_KEY_FILE=/etc/bits/spool_key     # path on runner (or omit to use secrets)
+#   BITS_CONFIG_REPO=bitsorg/lcg.bits
+#
+# Infrastructure credentials (SSH private keys) are stored on the runner
+# machine (not in GitHub) at the path given by BITS_SSH_KEY_FILE, or
+# they fall back to the SPOOL_SSH_KEY repository secret if set.
+#
+# Runner labelling
+# ────────────────
+# All runner labels follow the pattern:
+#   bits-build-<platform>      e.g. bits-build-x86_64-el9
+#   bits-ingest                the ingestion host runner
+#   bits-cvmfs-publisher       the stratum-0 / publisher runner
+#
+# If runner_group is supplied, it is appended as an additional label so that
+# the same runner type can be segmented per experiment:
+#   bits-build-x86_64-el9  +  cern    →  picks up a CERN-dedicated runner
+#   bits-build-x86_64-el9  +  lhcb    →  picks up an LHCb-dedicated runner
+#
+# Required runner-local credentials (stored on the runner, not in GitHub):
+#   BITS_SSH_KEY_FILE  path to SSH private key for rsync to the spool host
+#                      (set in runner's environment or supplied via bits.rc)
+#
+# Optional GitHub repository secrets (used as fallback when bits.rc omits them):
+#   SPOOL_SSH_KEY   SSH private key content (used if BITS_SSH_KEY_FILE is unset)
+#   SPOOL_USER      SSH user on the ingestion host
+#   SPOOL_HOST      Hostname or IP of the ingestion host
+#   SPOOL_PATH      Absolute path to the spool root on the ingestion host
+#   CVMFS_REPO      CVMFS repository name (e.g. sft.cern.ch)
+
+name: CVMFS Publish
+
+# Write permission is needed by the update-status job to commit cvmfs-status.json.
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package name (as in the .bits recipe, e.g. absl)"
+        required: true
+        type: string
+      version:
+        description: "Version to publish (leave blank for latest built)"
+        required: false
+        type: string
+      platform:
+        description: "Build platform label (e.g. x86_64-el9)"
+        required: true
+        type: choice
+        options:
+          - x86_64-el9
+          - x86_64-el8
+          - aarch64-el9
+      cvmfs_target:
+        description: "Final CVMFS install path (e.g. /lcg/releases/absl/20230802.1/x86_64-el9)"
+        required: true
+        type: string
+      bits_rc:
+        description: >
+          Base64-encoded bits.rc configuration file.  Generated automatically
+          by the bits Console from ui-config.yaml.  When present, overrides the
+          individual SPOOL_* and CVMFS_* secrets for this run.
+        required: false
+        type: string
+      runner_group:
+        description: >
+          Optional runner group label appended to the standard runner selector.
+          Use to route builds to experiment-specific runners (e.g. 'cern', 'lhcb').
+          Leave blank to use any available runner for the requested platform.
+        required: false
+        type: string
+      rebuild:
+        description: "Force rebuild even if already built"
+        required: false
+        default: false
+        type: boolean
+      # ── Advanced build options ──────────────────────────────────────────────
+      jobs:
+        description: "Parallel build jobs (0 = auto-detect from nproc)"
+        required: false
+        default: "0"
+        type: string
+      no_deps:
+        description: "Skip building dependencies (build this package only)"
+        required: false
+        default: false
+        type: boolean
+      debug:
+        description: "Enable verbose/debug output from bits build"
+        required: false
+        default: false
+        type: boolean
+      config_dir:
+        description: >
+          Recipe config repository (owner/repo).  Overrides BITS_CONFIG_REPO
+          from bits.rc.  Leave blank to use the value from bits.rc or the
+          BITS_CONFIG_REPO repository variable.
+        required: false
+        type: string
+      architecture:
+        description: "Architecture string override (leave blank to use runner default)"
+        required: false
+        type: string
+      extra_build_args:
+        description: "Extra arguments appended verbatim to bits build (e.g. --flag value)"
+        required: false
+        type: string
+
+env:
+  BITS_WORK_DIR: sw
+
+jobs:
+  # ------------------------------------------------------------------
+  build:
+  # ------------------------------------------------------------------
+    name: "Build & stage — ${{ inputs.package }} (${{ inputs.platform }})"
+    # If runner_group is set, append it as an extra label so experiment-specific
+    # runners can be selected.  fromJSON() parses the JSON array string.
+    runs-on: >-
+      ${{ fromJSON(
+            inputs.runner_group != '' &&
+            format('["self-hosted","bits-build-{0}","{1}"]', inputs.platform, inputs.runner_group) ||
+            format('["self-hosted","bits-build-{0}"]',       inputs.platform)
+          ) }}
+    outputs:
+      pkg_id:     ${{ steps.publish.outputs.pkg_id }}
+      spool_host: ${{ steps.bits-rc.outputs.spool_host }}
+      spool_user: ${{ steps.bits-rc.outputs.spool_user }}
+      spool_path: ${{ steps.bits-rc.outputs.spool_path }}
+
+    steps:
+      # ── Decode and apply bits.rc ─────────────────────────────────────────
+      - name: Decode bits.rc
+        id: bits-rc
+        shell: bash
+        run: |
+          # Write bits.rc when the input is provided, then source it so
+          # subsequent steps see the exported variables.
+          if [[ -n "${{ inputs.bits_rc }}" ]]; then
+            echo "${{ inputs.bits_rc }}" | base64 -d > ~/.bits.rc
+            chmod 600 ~/.bits.rc
+            echo "bits.rc written from workflow input"
+          elif [[ -f /etc/bits/bits.rc ]]; then
+            cp /etc/bits/bits.rc ~/.bits.rc
+            chmod 600 ~/.bits.rc
+            echo "bits.rc copied from /etc/bits/bits.rc"
+          fi
+
+          # Source the file (if present) so variables are available to this step.
+          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+
+          # Resolve spool connection — bits.rc > GitHub secrets.
+          SPOOL_HOST="${BITS_SPOOL_HOST:-${{ secrets.SPOOL_HOST }}}"
+          SPOOL_USER="${BITS_SPOOL_USER:-${{ secrets.SPOOL_USER }}}"
+          SPOOL_PATH="${BITS_SPOOL_PATH:-${{ secrets.SPOOL_PATH }}}"
+
+          # Expose as step outputs so other steps and the job output can use them.
+          echo "spool_host=${SPOOL_HOST}" >> "$GITHUB_OUTPUT"
+          echo "spool_user=${SPOOL_USER}" >> "$GITHUB_OUTPUT"
+          echo "spool_path=${SPOOL_PATH}" >> "$GITHUB_OUTPUT"
+          echo "spool_remote=${SPOOL_USER}@${SPOOL_HOST}:${SPOOL_PATH}" >> "$GITHUB_OUTPUT"
+
+      # ── Set up SSH key ───────────────────────────────────────────────────
+      - name: Set up SSH key for spool rsync
+        shell: bash
+        run: |
+          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+
+          install -d -m 700 ~/.ssh
+          SPOOL_HOST="${BITS_SPOOL_HOST:-${{ secrets.SPOOL_HOST }}}"
+
+          # Key selection priority:
+          #   1. BITS_SSH_KEY_FILE from bits.rc (runner-local key file)
+          #   2. SPOOL_SSH_KEY GitHub secret (legacy / per-repo)
+          if [[ -n "${BITS_SSH_KEY_FILE}" && -f "${BITS_SSH_KEY_FILE}" ]]; then
+            cp "${BITS_SSH_KEY_FILE}" ~/.ssh/spool_key
+          elif [[ -n "${{ secrets.SPOOL_SSH_KEY }}" ]]; then
+            echo "${{ secrets.SPOOL_SSH_KEY }}" > ~/.ssh/spool_key
+          else
+            echo "::error::No SSH key available. Set BITS_SSH_KEY_FILE in bits.rc or configure the SPOOL_SSH_KEY secret."
+            exit 1
+          fi
+          chmod 600 ~/.ssh/spool_key
+          ssh-keyscan -H "${SPOOL_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      # ── Checkout recipe config ───────────────────────────────────────────
+      - name: Checkout recipe config directory
+        uses: actions/checkout@v4
+        with:
+          # Priority: explicit input > bits.rc BITS_CONFIG_REPO > repository variable.
+          repository: >-
+            ${{ inputs.config_dir
+                || (inputs.bits_rc != '' && '')
+                || vars.BITS_CONFIG_REPO
+                || 'cern-sis/lcg.bits' }}
+          path: recipe-config
+
+      # ── Build ────────────────────────────────────────────────────────────
+      - name: Build package
+        shell: bash
+        run: |
+          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+
+          # Override BITS_CONFIG_REPO if caller supplied config_dir explicitly.
+          [[ -n "${{ inputs.config_dir }}" ]] && BITS_CONFIG_REPO="${{ inputs.config_dir }}"
+
+          EXTRA_FLAGS=""
+          [[ "${{ inputs.rebuild }}"  == "true" ]] && EXTRA_FLAGS+=" --rebuild"
+          [[ "${{ inputs.no_deps }}"  == "true" ]] && EXTRA_FLAGS+=" --no-deps"
+          [[ "${{ inputs.debug }}"    == "true" ]] && EXTRA_FLAGS+=" --debug"
+          [[ -n "${{ inputs.architecture }}" ]]    && EXTRA_FLAGS+=" --architecture ${{ inputs.architecture }}"
+          JOBS="${{ inputs.jobs }}"
+          [[ -n "$JOBS" && "$JOBS" != "0" ]]       && EXTRA_FLAGS+=" --jobs $JOBS"
+          EXTRA_FLAGS+=" ${{ inputs.extra_build_args }}"
+
+          bits build \
+            --config-dir recipe-config \
+            $EXTRA_FLAGS \
+            ${{ inputs.package }} \
+            ${{ inputs.version && format('{0}', inputs.version) || '' }}
+
+      # ── Publish (stream to spool) ────────────────────────────────────────
+      - name: Publish (copy → relocate → stream to spool)
+        id: publish
+        shell: bash
+        run: |
+          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+
+          SPOOL_USER="${BITS_SPOOL_USER:-${{ secrets.SPOOL_USER }}}"
+          SPOOL_HOST="${BITS_SPOOL_HOST:-${{ secrets.SPOOL_HOST }}}"
+          SPOOL_PATH="${BITS_SPOOL_PATH:-${{ secrets.SPOOL_PATH }}}"
+          SPOOL_REMOTE="${SPOOL_USER}@${SPOOL_HOST}:${SPOOL_PATH}"
+
+          ARCH=${{ inputs.architecture || '$(bits architecture)' }}
+          VERSION_DIR=$(ls -1d "$BITS_WORK_DIR/$ARCH/${{ inputs.package }}"/*/  \
+                        | sort | tail -1 | xargs basename)
+          PKG_ID="${{ inputs.package }}-${VERSION_DIR}-${ARCH/\//_}"
+          echo "pkg_id=$PKG_ID" >> "$GITHUB_OUTPUT"
+
+          bits publish \
+            "${{ inputs.package }}" \
+            ${{ inputs.version && format('{0}', inputs.version) || '' }} \
+            --cvmfs-target "${{ inputs.cvmfs_target }}" \
+            --spool        "${SPOOL_REMOTE}" \
+            --rsync-opts   "-e 'ssh -i ~/.ssh/spool_key -o StrictHostKeyChecking=yes'"
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/spool_key
+
+  # ------------------------------------------------------------------
+  ingest:
+  # ------------------------------------------------------------------
+    name: "Ingest blobs — ${{ needs.build.outputs.pkg_id }}"
+    needs: build
+    runs-on: >-
+      ${{ fromJSON(
+            inputs.runner_group != '' &&
+            format('["self-hosted","bits-ingest","{0}"]', inputs.runner_group) ||
+            '["self-hosted","bits-ingest"]'
+          ) }}
+
+    steps:
+      - name: Run cvmfs-ingest (--once mode)
+        shell: bash
+        run: |
+          # Decode bits.rc if provided (so BITS_SPOOL_PATH etc. are available).
+          if [[ -n "${{ inputs.bits_rc }}" ]]; then
+            echo "${{ inputs.bits_rc }}" | base64 -d > ~/.bits.rc
+            chmod 600 ~/.bits.rc
+          fi
+          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+
+          SPOOL_PATH="${BITS_SPOOL_PATH:-${{ secrets.SPOOL_PATH }}}"
+
+          cvmfs-ingest \
+            --spool        "${SPOOL_PATH}" \
+            --backend      "${{ vars.CVMFS_BACKEND_TYPE || 'local' }}" \
+            --backend-path "${{ vars.CVMFS_BACKEND_PATH }}" \
+            --hash         "${{ vars.CVMFS_HASH_ALGO || 'sha1' }}" \
+            --concurrency  "${{ vars.INGEST_CONCURRENCY || '0' }}" \
+            --once
+
+      - name: Upload manifest as CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ needs.build.outputs.pkg_id }}
+          path: "${{ needs.build.outputs.spool_path }}/completed/${{ needs.build.outputs.pkg_id }}.manifest.json"
+          retention-days: 7
+
+  # ------------------------------------------------------------------
+  publish:
+  # ------------------------------------------------------------------
+    name: "CVMFS transaction — ${{ needs.build.outputs.pkg_id }}"
+    needs: [build, ingest]
+    runs-on: >-
+      ${{ fromJSON(
+            inputs.runner_group != '' &&
+            format('["self-hosted","bits-cvmfs-publisher","{0}"]', inputs.runner_group) ||
+            '["self-hosted","bits-cvmfs-publisher"]'
+          ) }}
+
+    steps:
+      - name: Download manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: manifest-${{ needs.build.outputs.pkg_id }}
+          path: /tmp/manifests
+
+      - name: Checkout bits-cvmfs-ingest (for cvmfs-publish.sh)
+        uses: actions/checkout@v4
+        with:
+          repository: cern-sis/bits-cvmfs-ingest
+          path: bits-cvmfs-ingest
+
+      - name: Open transaction and publish
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.bits_rc }}" ]]; then
+            echo "${{ inputs.bits_rc }}" | base64 -d > ~/.bits.rc
+            chmod 600 ~/.bits.rc
+          fi
+          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+
+          CVMFS_REPO="${BITS_CVMFS_REPO:-${{ secrets.CVMFS_REPO }}}"
+
+          bash bits-cvmfs-ingest/cvmfs-publish.sh \
+            --repo     "${CVMFS_REPO}" \
+            --manifest "/tmp/manifests/${{ needs.build.outputs.pkg_id }}.manifest.json"
+
+  # ------------------------------------------------------------------
+  update-status:
+  # ------------------------------------------------------------------
+    name: "Update cvmfs-status.json"
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout bits-console
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update cvmfs-status.json
+        env:
+          PKG_ID:       ${{ needs.build.outputs.pkg_id }}
+          PACKAGE:      ${{ inputs.package }}
+          VERSION:      ${{ inputs.version }}
+          PLATFORM:     ${{ inputs.platform }}
+          CVMFS_TARGET: ${{ inputs.cvmfs_target }}
+          RUN_ID:       ${{ github.run_id }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, datetime
+
+          path = "cvmfs-status.json"
+          if not os.path.exists(path):
+              data = {"updated_at": None, "packages": []}
+          else:
+              with open(path) as f:
+                  data = json.load(f)
+
+          pkg_id       = os.environ["PKG_ID"]
+          published_at = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          entry = {
+              "pkg_id":       pkg_id,
+              "package":      os.environ["PACKAGE"],
+              "version":      os.environ["VERSION"],
+              "platform":     os.environ["PLATFORM"],
+              "cvmfs_target": os.environ["CVMFS_TARGET"],
+              "published_at": published_at,
+              "run_id":       os.environ["RUN_ID"],
+          }
+
+          packages = data.get("packages", [])
+          idx = next((i for i, p in enumerate(packages) if p.get("pkg_id") == pkg_id), None)
+          if idx is not None:
+              packages[idx] = entry
+          else:
+              packages.append(entry)
+
+          data["packages"]   = packages
+          data["updated_at"] = published_at
+
+          with open(path, "w") as f:
+              json.dump(data, f, indent=2)
+              f.write("\n")
+
+          print(f"Updated {path}: {pkg_id} → {entry['cvmfs_target']}")
+          PYEOF
+
+      - name: Commit and push cvmfs-status.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cvmfs-status.json
+          git diff --cached --quiet || \
+            git commit -m "cvmfs-status: publish ${{ needs.build.outputs.pkg_id }}" && \
+            git push

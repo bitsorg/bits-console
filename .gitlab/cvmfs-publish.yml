@@ -1,0 +1,206 @@
+# CVMFS publishing pipeline — GitLab CI variant
+#
+# Include in your project's .gitlab-ci.yml:
+#
+#   include:
+#     - project: cern-sis/bits-workflows
+#       file: .gitlab/cvmfs-publish.yml
+#       ref: main
+#
+# Or trigger as a standalone pipeline via the GitLab API / web UI.
+#
+# Pipeline variables (set via UI trigger or API):
+#   PACKAGE         Package name (required)
+#   VERSION         Version string (optional — defaults to latest)
+#   PLATFORM        Runner platform label, e.g. x86_64-el9 (required)
+#   CVMFS_TARGET    Final CVMFS install path (required)
+#   REBUILD         Set to "true" to force rebuild (optional)
+#
+# CI/CD variables (set in project Settings → CI/CD → Variables):
+#   SPOOL_SSH_KEY       SSH private key for ingestion host
+#   SPOOL_USER          SSH user on ingestion host
+#   SPOOL_HOST          Ingestion host hostname or IP
+#   SPOOL_PATH          Absolute spool root path on ingestion host
+#   CVMFS_REPO          CVMFS repository name (e.g. sft.cern.ch)
+#   CVMFS_BACKEND_TYPE  "local" or "s3" (default: local)
+#   CVMFS_BACKEND_PATH  Path for local backend
+#   CVMFS_HASH_ALGO     "sha1" or "sha256" (default: sha1)
+#   INGEST_CONCURRENCY  Worker count (default: 0 = auto)
+#
+# Runner tags used:
+#   bits-build-<platform>   e.g. bits-build-x86_64-el9
+#   bits-ingest
+#   bits-cvmfs-publisher
+
+stages:
+  - build
+  - ingest
+  - publish
+  - status
+
+# ---------------------------------------------------------------------------
+# Shared configuration fragment
+# ---------------------------------------------------------------------------
+.bits-defaults: &bits-defaults
+  variables:
+    BITS_WORK_DIR: sw
+    GIT_STRATEGY: none
+
+# ---------------------------------------------------------------------------
+# Stage 1 — Build & stage
+# ---------------------------------------------------------------------------
+bits-build:
+  <<: *bits-defaults
+  stage: build
+  tags:
+    - self-hosted
+    - bits-build-${PLATFORM}
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web"'
+  script:
+    # Set up SSH key for rsync to ingestion spool
+    - install -d -m 700 ~/.ssh
+    - echo "$SPOOL_SSH_KEY" > ~/.ssh/spool_key
+    - chmod 600 ~/.ssh/spool_key
+    - ssh-keyscan -H "$SPOOL_HOST" >> ~/.ssh/known_hosts
+
+    # Checkout recipe repo
+    - git clone --depth 1 https://gitlab.cern.ch/cern-sis/lcg.bits.git lcg.bits
+
+    # Build (skip if REBUILD != "true" and package already installed)
+    - |
+      if [[ "${REBUILD:-false}" == "true" ]] || \
+         ! ls "$BITS_WORK_DIR/$(bits architecture)/$PACKAGE"/*/relocate-me.sh &>/dev/null; then
+        bits build --config-dir lcg.bits "$PACKAGE"
+      else
+        echo "Package already built, skipping rebuild"
+      fi
+
+    # Compute pkg-id and write to dotenv for downstream jobs
+    - |
+      ARCH=$(bits architecture)
+      VERSION_DIR=$(ls -1d "$BITS_WORK_DIR/$ARCH/$PACKAGE"/*/ | sort | tail -1 | xargs basename)
+      PKG_ID="${PACKAGE}-${VERSION_DIR}-${ARCH/\//_}"
+      echo "PKG_ID=$PKG_ID" >> build.env
+
+    # Copy → relocate → stream to ingestion spool
+    - |
+      bits publish "$PACKAGE" ${VERSION:+$VERSION} \
+        --cvmfs-target "$CVMFS_TARGET" \
+        --spool "${SPOOL_USER}@${SPOOL_HOST}:${SPOOL_PATH}" \
+        --rsync-opts "-e 'ssh -i ~/.ssh/spool_key -o StrictHostKeyChecking=yes'"
+
+  after_script:
+    - rm -f ~/.ssh/spool_key
+  artifacts:
+    reports:
+      dotenv: build.env
+    expire_in: 1 day
+
+# ---------------------------------------------------------------------------
+# Stage 2 — Ingest blobs
+# ---------------------------------------------------------------------------
+bits-ingest:
+  <<: *bits-defaults
+  stage: ingest
+  tags:
+    - self-hosted
+    - bits-ingest
+  needs:
+    - job: bits-build
+      artifacts: true
+  script:
+    - |
+      cvmfs-ingest \
+        --spool        "$SPOOL_PATH" \
+        --backend      "${CVMFS_BACKEND_TYPE:-local}" \
+        --backend-path "${CVMFS_BACKEND_PATH}" \
+        --hash         "${CVMFS_HASH_ALGO:-sha1}" \
+        --concurrency  "${INGEST_CONCURRENCY:-0}" \
+        --once
+  artifacts:
+    paths:
+      - "${SPOOL_PATH}/completed/${PKG_ID}.manifest.json"
+    expire_in: 1 day
+
+# ---------------------------------------------------------------------------
+# Stage 3 — CVMFS transaction
+# ---------------------------------------------------------------------------
+bits-cvmfs-publish:
+  <<: *bits-defaults
+  stage: publish
+  tags:
+    - self-hosted
+    - bits-cvmfs-publisher
+  needs:
+    - job: bits-build
+      artifacts: true
+    - job: bits-ingest
+      artifacts: true
+  script:
+    # Clone publisher script from bits-cvmfs-ingest
+    - git clone --depth 1 https://gitlab.cern.ch/cern-sis/bits-cvmfs-ingest.git bits-cvmfs-ingest
+    - |
+      bash bits-cvmfs-ingest/cvmfs-publish.sh \
+        --repo     "$CVMFS_REPO" \
+        --manifest "${SPOOL_PATH}/completed/${PKG_ID}.manifest.json"
+
+# ---------------------------------------------------------------------------
+# Stage 4 — Update cvmfs-status.json in this repository
+# ---------------------------------------------------------------------------
+bits-update-status:
+  stage: status
+  # Use a lightweight runner — just needs git + python3.
+  image: python:3.11-slim
+  needs:
+    - job: bits-build
+      artifacts: true
+    - job: bits-cvmfs-publish
+  # Clone the bits-console repo (this repo) with write access via CI token.
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: "1"
+  script:
+    - |
+      python3 - <<'PYEOF'
+      import json, os, datetime
+
+      path = "cvmfs-status.json"
+      with open(path) as f:
+          data = json.load(f)
+
+      pkg_id       = os.environ["PKG_ID"]
+      published_at = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+      entry = {
+          "pkg_id":       pkg_id,
+          "package":      os.environ.get("PACKAGE", ""),
+          "version":      os.environ.get("VERSION", ""),
+          "platform":     os.environ.get("PLATFORM", ""),
+          "cvmfs_target": os.environ.get("CVMFS_TARGET", ""),
+          "published_at": published_at,
+          "run_id":       os.environ.get("CI_PIPELINE_ID", ""),
+      }
+
+      packages = data.get("packages", [])
+      idx = next((i for i, p in enumerate(packages) if p.get("pkg_id") == pkg_id), None)
+      if idx is not None:
+          packages[idx] = entry
+      else:
+          packages.append(entry)
+
+      data["packages"]   = packages
+      data["updated_at"] = published_at
+
+      with open(path, "w") as f:
+          json.dump(data, f, indent=2)
+          f.write("\n")
+
+      print(f"Updated {path}: {pkg_id} → {entry['cvmfs_target']}")
+      PYEOF
+
+    - git config user.name  "GitLab CI"
+    - git config user.email "noreply@gitlab.com"
+    - git remote set-url origin "https://ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git add cvmfs-status.json
+    - git diff --cached --quiet || git commit -m "cvmfs-status: publish ${PKG_ID}" && git push origin HEAD:${CI_COMMIT_BRANCH}

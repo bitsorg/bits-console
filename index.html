@@ -333,9 +333,16 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
       <i class="icon">🗄</i> CVMFS Status
     </div>
 
+    <div class="nav-item" onclick="nav('schedules')" id="nav-schedules">
+      <i class="icon">📅</i> Schedules
+    </div>
+
     <div class="nav-section">Configuration</div>
     <div class="nav-item" onclick="nav('settings')" id="nav-settings">
       <i class="icon">⚙️</i> Settings
+    </div>
+    <div class="nav-item" onclick="nav('help')" id="nav-help">
+      <i class="icon">📖</i> Help
     </div>
 
     <div id="sidebar-footer">
@@ -471,6 +478,84 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
       </div>
     </div>
 
+    <!-- Schedules ─────────────────────────────────────────────────────────── -->
+    <div class="tab-content" id="tab-schedules">
+      <div class="page-title">Scheduled Builds</div>
+      <div class="page-sub">
+        Periodical build schedules — each file defines a cron expression and a list of
+        packages built automatically by the <code>scheduled-build.yml</code> workflow.
+        Files are committed to <code>schedules/</code> in this repository.
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:16px; align-items:center;">
+        <button class="btn btn-primary" onclick="showNewScheduleModal()">+ New schedule file</button>
+        <button class="btn btn-outline btn-sm" onclick="loadSchedules()">↻ Refresh</button>
+      </div>
+
+      <div id="schedules-list"><div class="loading">Loading…</div></div>
+    </div>
+
+    <!-- Help ──────────────────────────────────────────────────────────── -->
+    <div class="tab-content" id="tab-help">
+
+      <style>
+        /* ── Rendered markdown (GitHub-style) ──────────────────────────────── */
+        .md-body { max-width: 860px; font-size: 14px; line-height: 1.7;
+                   color: var(--c-text); }
+        .md-body h1 { font-size: 22px; font-weight: 700; margin: 0 0 16px;
+                      padding-bottom: 8px; border-bottom: 2px solid var(--c-border); }
+        .md-body h2 { font-size: 18px; font-weight: 700; margin: 28px 0 10px;
+                      padding-bottom: 6px; border-bottom: 1px solid var(--c-border); }
+        .md-body h3 { font-size: 15px; font-weight: 600; margin: 20px 0 6px; }
+        .md-body h4 { font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+        .md-body p  { margin: 0 0 10px; }
+        .md-body a  { color: var(--c-info); text-decoration: none; }
+        .md-body a:hover { text-decoration: underline; }
+        .md-body code { background: #f6f8fa; border: 1px solid var(--c-border);
+                        padding: 1px 5px; border-radius: 3px; font-size: 12px;
+                        font-family: var(--font-mono); }
+        .md-body pre  { background: #0d1117; color: #c9d1d9; padding: 14px 16px;
+                        border-radius: var(--radius); font-size: 12px;
+                        overflow-x: auto; margin: 8px 0 14px; }
+        .md-body pre code { background: none; border: none; padding: 0;
+                            font-size: inherit; color: inherit; }
+        .md-body ul, .md-body ol { padding-left: 22px; margin: 6px 0 10px; }
+        .md-body li   { margin-bottom: 4px; }
+        .md-body blockquote { border-left: 3px solid var(--c-border);
+                              margin: 10px 0; padding: 4px 12px;
+                              color: var(--c-muted); font-style: italic; }
+        .md-body hr   { border: none; border-top: 1px solid var(--c-border);
+                        margin: 24px 0; }
+        .md-body table { border-collapse: collapse; width: 100%;
+                         margin: 8px 0 14px; font-size: 13px; }
+        .md-body th   { background: #f6f8fa; font-weight: 600; text-align: left; }
+        .md-body th, .md-body td { border: 1px solid var(--c-border);
+                                   padding: 6px 10px; vertical-align: top; }
+        .md-body tr:hover td { background: #f6f8fa; }
+        .md-body strong { font-weight: 600; }
+        #help-readme-toolbar { display:flex; align-items:center; gap:10px;
+                               margin-bottom:14px; }
+      </style>
+
+      <div id="help-readme-toolbar">
+        <div class="page-title" style="margin:0;flex:1;">Help &amp; Setup Guide</div>
+        <a id="help-gh-link" href="#" target="_blank"
+           class="btn btn-outline btn-sm" style="font-size:12px;">
+          View on GitHub ↗
+        </a>
+        <a id="help-ref-link" href="#" target="_blank"
+           class="btn btn-outline btn-sm" style="font-size:12px;">
+          REFERENCE.md ↗
+        </a>
+      </div>
+
+      <div id="help-readme-content">
+        <div id="help-loading" style="color:var(--c-muted);padding:20px 0;font-size:13px;">
+          Loading documentation…
+        </div>
+      </div>
+    </div>
+
     <!-- Settings ──────────────────────────────────────────────────────── -->
     <div class="tab-content" id="tab-settings">
       <div class="page-title">Settings</div>
@@ -515,9 +600,22 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
           Select the recipe repositories to browse in the Packages tab.
           The list is fetched from
           <a href="https://github.com/bitsorg/bits-providers" target="_blank">bitsorg/bits-providers</a>.
-          Changes take effect immediately and are remembered for this session.
+          Changes take effect immediately. Enable <em>Remember me</em> in the Persistence
+          section below to keep them across browser sessions.
         </p>
         <div id="provider-summary" class="alert alert-warn">Loading providers…</div>
+
+        <!-- Active provider order (search priority) -->
+        <div class="box" style="margin-bottom:12px;">
+          <div class="box-header" style="padding:8px 14px;">
+            <span class="box-title" style="font-size:13px;">Search order</span>
+            <span style="font-size:11px;color:var(--c-muted);">
+              When the same package exists in multiple providers, the first match wins.
+            </span>
+          </div>
+          <div id="provider-order" style="padding:6px 14px;"></div>
+        </div>
+
         <div class="box" style="margin-bottom:16px;">
           <div class="box-header" style="padding:8px 14px;">
             <span class="box-title" style="font-size:13px;">Available providers</span>
@@ -557,18 +655,55 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
 
       <!-- Secrets reference -->
       <div class="settings-section">
-        <h3>Workflow secrets required</h3>
-        <div class="alert alert-info">
-          Configure these in <strong>Settings → Secrets and variables → Actions</strong>
-          in the repository.
+        <h3>Workflow secrets</h3>
+        <p style="font-size:13px;color:var(--c-muted);margin-bottom:12px;">
+          In <strong>agnostic runner mode</strong> (recommended) the values below are
+          supplied via <code>bits.rc</code> from <code>ui-config.yaml</code> and the SSH key
+          is stored on the runner machine.  GitHub secrets are only needed as a fallback
+          for legacy single-repo runner setups.
+        </p>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          Configure in <strong>Settings → Secrets and variables → Actions</strong> in the repository.
         </div>
         <table class="kv-table">
-          <tr><td>SPOOL_SSH_KEY</td><td>SSH private key for rsync to the ingestion host</td></tr>
-          <tr><td>SPOOL_USER</td><td>SSH username on the ingestion host</td></tr>
-          <tr><td>SPOOL_HOST</td><td>Ingestion host address</td></tr>
-          <tr><td>SPOOL_PATH</td><td>Absolute spool root path on the ingestion host</td></tr>
-          <tr><td>CVMFS_REPO</td><td>CVMFS repository name (e.g. <code>sft.cern.ch</code>)</td></tr>
+          <tr>
+            <td>SPOOL_SSH_KEY</td>
+            <td>SSH private key for rsync to the ingestion host.
+              <em>Not needed when <code>ssh_key_file</code> is set in ui-config.yaml.</em></td>
+          </tr>
+          <tr>
+            <td>SPOOL_USER</td>
+            <td>SSH username on the ingestion host.
+              <em>Not needed when <code>spool_user</code> is set in ui-config.yaml.</em></td>
+          </tr>
+          <tr>
+            <td>SPOOL_HOST</td>
+            <td>Ingestion host address.
+              <em>Not needed when <code>spool_host</code> is set in ui-config.yaml.</em></td>
+          </tr>
+          <tr>
+            <td>SPOOL_PATH</td>
+            <td>Absolute spool root path on the ingestion host.
+              <em>Not needed when <code>spool_path</code> is set in ui-config.yaml.</em></td>
+          </tr>
+          <tr>
+            <td>CVMFS_REPO</td>
+            <td>CVMFS repository name (e.g. <code>sft.cern.ch</code>).
+              <em>Not needed when <code>cvmfs_repo</code> is set in ui-config.yaml.</em></td>
+          </tr>
         </table>
+      </div>
+
+      <!-- Config persistence -->
+      <div class="settings-section">
+        <h3>Config persistence</h3>
+        <p style="font-size:13px;color:var(--c-muted);margin-bottom:12px;">
+          By default settings (token, repository, selected providers) are remembered only for
+          the current browser tab and cleared when the tab is closed.  Enable
+          <em>Remember me</em> to persist them in <code>localStorage</code> across browser
+          sessions, or use the export/import buttons to save and restore a snapshot.
+        </p>
+        <div id="persistence-panel"></div>
       </div>
     </div>
 
@@ -743,6 +878,10 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
         <h3 id="pd-title" style="margin-bottom:2px;">Package</h3>
         <div id="pd-subtitle" style="font-size:12px; color:var(--c-muted); font-weight:400;"></div>
       </div>
+      <button class="btn btn-outline btn-sm"
+              onclick="scheduleFromDetail()" style="margin-right:4px;">
+        📅 Schedule
+      </button>
       <button class="btn btn-primary btn-sm" id="pd-build-btn"
               onclick="buildFromDetail()" style="margin-right:8px;">
         🔨 Build &amp; Publish
@@ -772,14 +911,88 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
         <div id="pd-patches"></div>
       </div>
 
-      <!-- Build history -->
-      <div>
+      <!-- Tab strip: History | Recipe | Dependencies | Licenses -->
+      <div style="display:flex; border-bottom:1px solid var(--c-border); margin-bottom:12px; gap:0; flex-wrap:wrap;">
+        <button id="pd-tab-history"
+                onclick="switchDetailTab('history')"
+                style="background:none;border:none;padding:8px 14px;cursor:pointer;
+                       font-size:13px;font-weight:600;color:var(--c-info);
+                       border-bottom:2px solid var(--c-info);">
+          Build history
+        </button>
+        <button id="pd-tab-recipe"
+                onclick="switchDetailTab('recipe')"
+                style="background:none;border:none;padding:8px 14px;cursor:pointer;
+                       font-size:13px;color:var(--c-muted);border-bottom:2px solid transparent;">
+          Recipe script
+        </button>
+        <button id="pd-tab-deps"
+                onclick="switchDetailTab('deps')"
+                style="background:none;border:none;padding:8px 14px;cursor:pointer;
+                       font-size:13px;color:var(--c-muted);border-bottom:2px solid transparent;">
+          Dependencies
+        </button>
+        <button id="pd-tab-licenses"
+                onclick="switchDetailTab('licenses')"
+                style="background:none;border:none;padding:8px 14px;cursor:pointer;
+                       font-size:13px;color:var(--c-muted);border-bottom:2px solid transparent;">
+          Licenses
+        </button>
+      </div>
+
+      <!-- History panel -->
+      <div id="pd-panel-history">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-          <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
-                      letter-spacing:.6px; flex:1;">Build history</div>
+          <div style="flex:1;"></div>
           <button class="btn btn-outline btn-sm" onclick="refreshPackageHistory()">↻ Refresh</button>
         </div>
         <div id="pd-history"><div class="loading">Loading…</div></div>
+      </div>
+
+      <!-- Recipe script panel -->
+      <div id="pd-panel-recipe" style="display:none;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <span style="font-size:12px; color:var(--c-muted);" id="pd-recipe-path"></span>
+          <div style="flex:1;"></div>
+          <a id="pd-recipe-gh-link" href="#" target="_blank" style="font-size:12px;">
+            View on GitHub ↗
+          </a>
+        </div>
+        <pre id="pd-recipe-body"
+             style="background:#0d1117;color:#c9d1d9;padding:16px;border-radius:var(--radius);
+                    font-size:12px;font-family:var(--font-mono);overflow:auto;
+                    max-height:420px;white-space:pre;border:1px solid #30363d;margin:0;">
+        </pre>
+      </div>
+
+      <!-- Dependencies panel -->
+      <div id="pd-panel-deps" style="display:none;">
+        <div id="pd-deps-stats" style="font-size:12px; color:var(--c-muted); margin-bottom:10px;"></div>
+
+        <!-- ASCII tree -->
+        <div style="margin-bottom:16px;">
+          <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
+                      letter-spacing:.6px; margin-bottom:6px;">Dependency tree</div>
+          <pre id="pd-deps-tree"
+               style="background:#f6f8fa; border:1px solid var(--c-border); border-radius:var(--radius);
+                      padding:12px; font-size:12px; font-family:var(--font-mono); overflow:auto;
+                      max-height:260px; white-space:pre; margin:0; line-height:1.6;"></pre>
+        </div>
+
+        <!-- SVG graph -->
+        <div>
+          <div style="font-size:11px; font-weight:600; color:var(--c-muted); text-transform:uppercase;
+                      letter-spacing:.6px; margin-bottom:6px;">Dependency graph</div>
+          <div id="pd-deps-graph"
+               style="overflow-x:auto; border:1px solid var(--c-border); border-radius:var(--radius);
+                      background:#fafbfc; padding:8px; min-height:60px;"></div>
+        </div>
+      </div>
+
+      <!-- Licenses panel -->
+      <div id="pd-panel-licenses" style="display:none;">
+        <div id="pd-licenses-summary" style="margin-bottom:12px;"></div>
+        <div id="pd-licenses-table"></div>
       </div>
 
     </div>
@@ -808,8 +1021,140 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
   </div>
 </div>
 
+<!-- ── New schedule file modal ───────────────────────────────────────────── -->
+<div class="modal-bg hidden" id="new-schedule-modal">
+  <div class="modal" style="width:480px;">
+    <div class="modal-header">
+      <h3>New schedule file</h3>
+      <button class="close-btn" onclick="hideModal('new-schedule-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>File name</label>
+        <input type="text" id="ns-name" placeholder="nightly.json"
+               onkeydown="if(event.key==='Enter') createScheduleFile()">
+        <div class="form-hint">Stored as <code>schedules/{name}.json</code> in this repository.</div>
+      </div>
+      <div class="form-row">
+        <label>Cron expression <span style="font-weight:400;color:var(--c-muted);">(UTC, informational)</span></label>
+        <input type="text" id="ns-cron" placeholder="0 2 * * *" value="0 2 * * *">
+        <div class="form-hint">
+          Standard 5-field cron —
+          <a href="https://crontab.guru/" target="_blank">crontab.guru ↗</a>.
+          The actual trigger schedule is set in <code>scheduled-build.yml</code>.
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <input type="text" id="ns-desc" placeholder="Nightly builds for LCG stack">
+      </div>
+      <div id="ns-error" class="alert alert-error" style="display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="hideModal('new-schedule-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createScheduleFile()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Schedule entry modal ───────────────────────────────────────────────── -->
+<div class="modal-bg hidden" id="sched-entry-modal" style="align-items:flex-start; padding-top:32px;">
+  <div class="modal" style="width:560px;">
+    <div class="modal-header">
+      <h3 id="se-modal-title">Add schedule entry</h3>
+      <button class="close-btn" onclick="hideModal('sched-entry-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-row" id="se-file-row">
+        <label>Add to schedule file</label>
+        <select id="se-target-file"></select>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+        <div class="form-row">
+          <label>Package</label>
+          <input type="text" id="se-package" placeholder="ROOT" oninput="updateSeTarget()">
+        </div>
+        <div class="form-row">
+          <label>Version <span style="font-weight:400;color:var(--c-muted);">(blank = latest)</span></label>
+          <input type="text" id="se-version" placeholder="6.30.08" oninput="updateSeTarget()">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Platform</label>
+        <select id="se-platform" onchange="updateSeTarget()"></select>
+      </div>
+
+      <div class="form-row">
+        <label>CVMFS target path</label>
+        <input type="text" id="se-cvmfs-target">
+        <div class="form-hint">Final absolute install path on CVMFS.</div>
+      </div>
+
+      <div style="display:flex; gap:16px; margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="se-rebuild" style="width:auto;"> Force rebuild
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="se-no-deps" style="width:auto;"> Skip dependencies
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="se-debug" style="width:auto;"> Debug output
+        </label>
+      </div>
+
+      <details>
+        <summary style="cursor:pointer; font-size:13px; color:var(--c-info);
+                        margin-bottom:10px; user-select:none;">
+          Advanced options
+        </summary>
+        <div style="border:1px solid var(--c-border); border-radius:var(--radius);
+                    padding:14px; margin-top:4px; background:#fafbfc;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px;">
+            <div class="form-row">
+              <label>Parallel jobs <code>-j</code></label>
+              <input type="number" id="se-jobs" value="0" min="0" max="256">
+              <div class="form-hint">0 = auto-detect from <code>nproc</code>.</div>
+            </div>
+            <div class="form-row">
+              <label>Config directory</label>
+              <input type="text" id="se-config-dir" placeholder="auto (from provider)">
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom:0;">
+            <label>Extra build arguments</label>
+            <input type="text" id="se-extra-args" placeholder="e.g. --flag value">
+          </div>
+        </div>
+      </details>
+
+      <div id="se-error" class="alert alert-error" style="display:none; margin-top:12px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="hideModal('sched-entry-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveScheduleEntry()">Add to schedule</button>
+    </div>
+  </div>
+</div>
+
 <script>
 'use strict';
+
+// ── Persistence bootstrap ──────────────────────────────────────────────────
+// If the user previously enabled "remember me", migrate localStorage values
+// into sessionStorage so the rest of the app can read them normally.
+(function migrateLocalStorage() {
+  try {
+    if (localStorage.getItem('bits_persist') === 'true') {
+      for (const k of ['gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers', 'bits_provider_overrides']) {
+        const v = localStorage.getItem(k);
+        if (v !== null) sessionStorage.setItem(k, v);
+      }
+    }
+  } catch { /* private-browsing / storage blocked */ }
+})();
 
 // ── State ──────────────────────────────────────────────────────────────────
 const State = {
@@ -821,10 +1166,83 @@ const State = {
   cvmfsStatus:     [],     // from cvmfs-status.json
   providers:       [],     // all providers from bitsorg/bits-providers registry.json
   activeProviders: [],     // currently selected [{owner, repo, branch, name}]
+  schedules:          {},  // filename → { cron, description, enabled, entries, _sha }
+  providerOverrides:  {},  // providerKey → { owner, repo }  (user-set corrections)
+  branch:          'main',  // GitHub Pages source branch; refined by loadConfig()
+  _packagesLoaded: false,  // true after first successful load; cleared when providers change
+  _helpLoaded:     false,
   buildPollTimer:  null,
   logPollTimer:    null,
   currentRunId:    null,
 };
+
+// Load provider overrides from storage immediately so loadProviders() can use them.
+(function loadProviderOverrides() {
+  try {
+    const raw = sessionStorage.getItem('bits_provider_overrides');
+    if (raw) State.providerOverrides = JSON.parse(raw);
+  } catch { /* ignore */ }
+})();
+
+// ── Storage helper ─────────────────────────────────────────────────────────
+// Write to sessionStorage always; also write to localStorage when persistence
+// is enabled ("remember me" toggle).
+function storeItem(key, value) {
+  try { sessionStorage.setItem(key, value); } catch { /* storage blocked */ }
+  try {
+    if (localStorage.getItem('bits_persist') === 'true')
+      localStorage.setItem(key, value);
+  } catch { /* private-browsing */ }
+}
+function removeItem(key) {
+  try { sessionStorage.removeItem(key); } catch { /* storage blocked */ }
+  try { localStorage.removeItem(key); } catch { /* storage blocked */ }
+}
+
+// ── Provider colour palette ────────────────────────────────────────────────
+// Each active provider is assigned a stable colour based on its position in
+// State.activeProviders.  Used in the provider list, package table badges,
+// and the dependency graph.
+const PROVIDER_PALETTE = [
+  { fill: '#dbeafe', stroke: '#3b82f6', dot: '#2563eb' }, // blue
+  { fill: '#fef3c7', stroke: '#f59e0b', dot: '#b45309' }, // amber
+  { fill: '#d1fae5', stroke: '#10b981', dot: '#047857' }, // green
+  { fill: '#fce7f3', stroke: '#ec4899', dot: '#be185d' }, // pink
+  { fill: '#ede9fe', stroke: '#8b5cf6', dot: '#6d28d9' }, // purple
+  { fill: '#ffedd5', stroke: '#f97316', dot: '#c2410c' }, // orange
+  { fill: '#cffafe', stroke: '#06b6d4', dot: '#0e7490' }, // cyan
+  { fill: '#f0fdf4', stroke: '#22c55e', dot: '#15803d' }, // lime
+];
+
+// Return the palette entry for the provider whose _source label matches,
+// or a neutral grey for unknown/missing providers.
+function providerPalette(sourceLabel) {
+  const idx = State.activeProviders.findIndex(
+    p => (p.name || `${p.owner}/${p.repo}`) === sourceLabel
+  );
+  return idx >= 0 ? PROVIDER_PALETTE[idx % PROVIDER_PALETTE.length]
+                  : { fill: '#f6f8fa', stroke: '#d0d7de', dot: '#6e7781' };
+}
+
+// Render a coloured source tag <span> for a given _source label.
+function sourceTag(src) {
+  if (!src) return '<span class="text-muted">—</span>';
+  const col = providerPalette(src);
+  return `<span class="tag" style="background:${col.fill};color:${col.dot};` +
+         `border:1px solid ${col.stroke};">${esc(src)}</span>`;
+}
+
+// Move an active provider up (-1) or down (+1) in the priority list.
+function moveProvider(index, dir) {
+  const arr = State.activeProviders;
+  const target = index + dir;
+  if (target < 0 || target >= arr.length) return;
+  [arr[index], arr[target]] = [arr[target], arr[index]];
+  storeItem('bits_active_providers', JSON.stringify(arr));
+  State._packagesLoaded = false;
+  renderProviders();
+  loadPackages();
+}
 
 // ── GitHub API ─────────────────────────────────────────────────────────────
 async function ghFetch(path, opts = {}) {
@@ -878,6 +1296,30 @@ function parseSimpleYaml(text) {
   return out;
 }
 
+// ── bits.rc builder ────────────────────────────────────────────────────────
+// Constructs a bits.rc shell file from the runner_config fields in
+// ui-config.yaml and returns it base64-encoded so it can be passed as a
+// workflow_dispatch input.  Returns an empty string if config is absent.
+function buildBitsRc() {
+  const c = State.config || {};
+  const lines = ['# bits.rc — generated by bits Console from ui-config.yaml'];
+  const map = [
+    ['cvmfs_repo',   'BITS_CVMFS_REPO'],
+    ['cvmfs_prefix', 'BITS_CVMFS_PREFIX'],
+    ['spool_host',   'BITS_SPOOL_HOST'],
+    ['spool_user',   'BITS_SPOOL_USER'],
+    ['spool_path',   'BITS_SPOOL_PATH'],
+    ['ssh_key_file', 'BITS_SSH_KEY_FILE'],
+    ['config_repo',  'BITS_CONFIG_REPO'],
+  ];
+  for (const [cfgKey, envKey] of map) {
+    const val = (c[cfgKey] || '').trim();
+    if (val) lines.push(`${envKey}=${val}`);
+  }
+  if (lines.length === 1) return ''; // nothing to encode
+  return toBase64Unicode(lines.join('\n') + '\n');
+}
+
 // ── Load ui-config.yaml ────────────────────────────────────────────────────
 async function loadConfig() {
   if (!State.owner || !State.repo) {
@@ -901,6 +1343,18 @@ async function loadConfig() {
   }
   initActiveProviders();
   applyConfig();
+  // Detect the GitHub Pages source branch so README/REFERENCE links point to
+  // the right branch (may be 'test', 'gh-pages', etc., not necessarily 'main').
+  // Fire-and-forget — failure just keeps the 'main' default.
+  ghGet(`/repos/${State.owner}/${State.repo}/pages`)
+    .then(p => {
+      const b = p?.source?.branch;
+      if (b && b !== State.branch) {
+        State.branch     = b;
+        State._helpLoaded = false;   // re-fetch README with the correct branch
+      }
+    })
+    .catch(() => {});
 }
 
 // ── Repo setup (local dev) ─────────────────────────────────────────────────
@@ -909,8 +1363,8 @@ function setRepo() {
   const repo  = el('setup-repo').value.trim();
   if (!owner || !repo) { el('setup-error').style.display = 'block'; return; }
   el('setup-error').style.display = 'none';
-  sessionStorage.setItem('bits_owner', owner);
-  sessionStorage.setItem('bits_repo',  repo);
+  storeItem('bits_owner', owner);
+  storeItem('bits_repo',  repo);
   State.owner = owner;
   State.repo  = repo;
   hideModal('repo-setup-modal');
@@ -922,7 +1376,18 @@ function initActiveProviders() {
   // Session selection overrides config (persists until tab is closed).
   const saved = sessionStorage.getItem('bits_active_providers');
   if (saved) {
-    try { State.activeProviders = JSON.parse(saved); return; } catch {}
+    try {
+      const parsed = JSON.parse(saved);
+      // Re-resolve owner slugs against the now-loaded registry so that stale
+      // display-name owners (e.g. "CERN/EP-SFT") are replaced with the real
+      // GitHub slug, then deduplicate by owner+repo.
+      State.activeProviders = deduplicateProviders(
+        parsed.map(entry => normaliseProviderEntry(entry))
+      );
+      // Persist the normalised version so stale entries don't accumulate.
+      storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
+      return;
+    } catch {}
   }
   // Seed from recipe_repos in ui-config.yaml.
   const repos = Array.isArray((State.config || {}).recipe_repos)
@@ -932,13 +1397,50 @@ function initActiveProviders() {
   );
 }
 
+// Cross-reference a stored entry against the loaded registry to get the
+// canonical GitHub owner slug.  Falls back to the stored owner if no match.
+function normaliseProviderEntry(entry) {
+  const match = State.providers.find(
+    p => (p._ghRepo || p.repo) === entry.repo &&
+         ((p._ghOwner || p.owner) === entry.owner || p.owner === entry.owner)
+  );
+  if (match) {
+    return { ...entry, owner: match._ghOwner || match.owner, repo: match._ghRepo || match.repo,
+             name: entry.name || match.name };
+  }
+  return entry;
+}
+
+function deduplicateProviders(list) {
+  const seen = new Set();
+  return list.filter(p => {
+    const key = `${p.owner}/${p.repo}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
+
 async function loadProviders() {
   try {
     // Fetch the central registry from bitsorg/bits-providers.
     // This is a public repo; no auth needed.
     const data = await ghGet('/repos/bitsorg/bits-providers/contents/registry.json');
     const text = atob(data.content.replace(/\n/g,''));
-    State.providers = JSON.parse(text);
+    const raw  = JSON.parse(text);
+    // Resolve the actual GitHub owner/repo from the homepage URL when the
+    // owner field is a display name (contains spaces or slashes) rather than
+    // a plain GitHub org slug.
+    State.providers = raw.map(p => {
+      const base = {
+        ...p,
+        _ghOwner: resolveGhOwner(p),
+        _ghRepo:  resolveGhRepo(p),
+      };
+      // Apply any user-set override for this provider.
+      const ov = State.providerOverrides[providerKey(base)];
+      if (ov) { base._ghOwner = ov.owner; base._ghRepo = ov.repo; base._overridden = true; }
+      return base;
+    });
   } catch(e) {
     console.warn('Could not load provider registry:', e.message);
     State.providers = [];
@@ -946,21 +1448,126 @@ async function loadProviders() {
   renderProviders();
 }
 
-function isProviderActive(p) {
-  return State.activeProviders.some(a => a.owner === p.owner && a.repo === p.repo);
+// Return the GitHub org/user slug to use in API calls.
+// Always prefers the github.com path in the homepage URL — it is the
+// authoritative source for the real GitHub owner, regardless of what the
+// owner field says (display names like "CERN/EP-SFT" or "LHCb" are common).
+function resolveGhOwner(p) {
+  if (p.homepage) {
+    const m = p.homepage.match(/github\.com\/([^/?#]+)/);
+    if (m) return m[1];
+  }
+  // Fallback: use owner only if it looks like a plain GitHub slug.
+  if (p.owner && !p.owner.includes('/') && !p.owner.includes(' '))
+    return p.owner;
+  return p.owner || '';
 }
 
-function toggleProvider(owner, repo, branch, name, checked) {
+function resolveGhRepo(p) {
+  if (p.homepage) {
+    const m = p.homepage.match(/github\.com\/[^/?#]+\/([^/?#]+)/);
+    if (m) return m[1].replace(/\.git$/, '');
+  }
+  return p.repo || '';
+}
+
+// Stable key for a registry entry — based on the registry fields, not resolved ones,
+// so it survives re-resolution.
+function providerKey(p) {
+  return `${p.name || ''}|${p.owner || ''}|${p.repo || ''}`;
+}
+
+// Set or clear a manual override for a registry provider.
+function setProviderOverride(key, owner, repo) {
+  if (owner && repo) {
+    State.providerOverrides[key] = { owner: owner.trim(), repo: repo.trim() };
+  } else {
+    delete State.providerOverrides[key];
+  }
+  storeItem('bits_provider_overrides', JSON.stringify(State.providerOverrides));
+  // Re-apply overrides to the cached provider list without a full network round-trip.
+  State.providers = State.providers.map(p => {
+    if (providerKey(p) !== key) return p;
+    const ov = State.providerOverrides[key];
+    return ov
+      ? { ...p, _ghOwner: ov.owner, _ghRepo: ov.repo, _overridden: true }
+      : { ...p, _ghOwner: resolveGhOwner(p), _ghRepo: resolveGhRepo(p), _overridden: false };
+  });
+  // If this provider is currently active, update the active entry too.
+  State.activeProviders = State.activeProviders.map(a => {
+    const match = State.providers.find(p => providerKey(p) === key);
+    if (!match) return a;
+    const oldOwner = a.owner; const oldRepo = a.repo;
+    // Was this entry the one being overridden? Match on either old or new owner/repo.
+    const ov = State.providerOverrides[key];
+    const newOwner = ov ? ov.owner : (match._ghOwner || match.owner);
+    const newRepo  = ov ? ov.repo  : (match._ghRepo  || match.repo);
+    if (a.owner === oldOwner && a.repo === oldRepo) return { ...a, owner: newOwner, repo: newRepo };
+    return a;
+  });
+  storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
+  State._packagesLoaded = false;
+  renderProviders();
+  loadPackages();
+}
+
+function showOverrideForm(key, currentOwner, currentRepo) {
+  // Build a tiny inline form inside the provider row.
+  const rowId = 'override-form-' + key.replace(/[^a-z0-9]/gi, '_');
+  // Toggle: if already open, close it.
+  const existing = document.getElementById(rowId);
+  if (existing) { existing.remove(); return; }
+  const container = document.getElementById('prov-row-' + key.replace(/[^a-z0-9]/gi, '_'));
+  if (!container) return;
+  const div = document.createElement('div');
+  div.id = rowId;
+  div.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;';
+  div.innerHTML = `
+    <input id="ov-owner-${rowId}" type="text" placeholder="owner" value="${esc(currentOwner)}"
+           style="width:120px;font-size:12px;padding:3px 6px;background:var(--c-bg-2);
+                  border:1px solid var(--c-border);border-radius:4px;color:var(--c-fg);">
+    <span style="color:var(--c-muted);">/</span>
+    <input id="ov-repo-${rowId}" type="text" placeholder="repo" value="${esc(currentRepo)}"
+           style="width:160px;font-size:12px;padding:3px 6px;background:var(--c-bg-2);
+                  border:1px solid var(--c-border);border-radius:4px;color:var(--c-fg);">
+    <button class="btn btn-primary btn-sm" onclick="
+      setProviderOverride('${esc(key)}',
+        document.getElementById('ov-owner-${rowId}').value,
+        document.getElementById('ov-repo-${rowId}').value)">
+      Apply
+    </button>
+    <button class="btn btn-outline btn-sm" onclick="setProviderOverride('${esc(key)}','','')">
+      Reset
+    </button>
+    <button class="btn btn-outline btn-sm" onclick="document.getElementById('${rowId}').remove()">
+      ✕
+    </button>`;
+  container.appendChild(div);
+}
+
+function isProviderActive(p) {
+  // Match on the resolved GitHub owner + repo.
+  const ghOwner = p._ghOwner || p.owner;
+  const ghRepo  = p._ghRepo  || p.repo;
+  return State.activeProviders.some(a => a.owner === ghOwner && a.repo === ghRepo);
+}
+
+function toggleProvider(ghOwner, ghRepo, branch, name, checked) {
   if (checked) {
-    if (!isProviderActive({ owner, repo }))
-      State.activeProviders.push({ owner, repo, branch: branch || 'main', name });
+    if (!State.activeProviders.some(a => a.owner === ghOwner && a.repo === ghRepo))
+      State.activeProviders.push({ owner: ghOwner, repo: ghRepo, branch: branch || 'main', name });
   } else {
     State.activeProviders = State.activeProviders.filter(
-      a => !(a.owner === owner && a.repo === repo)
+      a => !(a.owner === ghOwner && a.repo === ghRepo)
     );
   }
-  sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
+  // Always deduplicate before persisting to defend against any race.
+  State.activeProviders = deduplicateProviders(State.activeProviders);
+  storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
   renderProviderSummary();
+  // Invalidate cache and reload the package list immediately.
+  State._packagesLoaded = false;
+  loadPackages();
 }
 
 function renderProviders() {
@@ -971,24 +1578,59 @@ function renderProviders() {
     renderProviderSummary(); return;
   }
   list.innerHTML = State.providers.map(p => {
-    const active  = isProviderActive(p);
-    const tags    = (p.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
-    const safeId  = esc(p.id || `${p.owner}/${p.repo}`);
-    return `<label class="provider-row" style="display:flex;align-items:flex-start;gap:10px;
-        padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--c-border);">
-      <input type="checkbox" style="margin-top:3px;width:auto;"
-        ${active ? 'checked' : ''}
-        onchange="toggleProvider('${esc(p.owner)}','${esc(p.repo)}','${esc(p.branch||'main')}','${esc(p.name||p.repo)}',this.checked)">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:13px;">
-          ${esc(p.name || p.repo)}
-          <span class="mono text-muted" style="font-weight:400;font-size:11px;margin-left:6px;">${esc(p.owner)}/${esc(p.repo)}</span>
+    const active   = isProviderActive(p);
+    const ghOwner  = p._ghOwner || p.owner;
+    const ghRepo   = p._ghRepo  || p.repo;
+    const tags     = (p.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+    const key      = providerKey(p);
+    const rowDomId = 'prov-row-' + key.replace(/[^a-z0-9]/gi, '_');
+    const pName    = p.name || ghRepo;
+
+    // Colour dot for active providers (colour = position in activeProviders array).
+    const activeIdx = State.activeProviders.findIndex(
+      a => a.owner === ghOwner && a.repo === ghRepo
+    );
+    const colDot = active && activeIdx >= 0
+      ? `<span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;
+                      background:${PROVIDER_PALETTE[activeIdx % PROVIDER_PALETTE.length].dot};
+                      title="Priority ${activeIdx + 1}"></span>`
+      : `<span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;
+                      background:var(--c-border);"></span>`;
+
+    // Resolved path annotation.
+    let resolvedNote = '';
+    if (p._overridden) {
+      resolvedNote = `<span style="color:#d29922;font-size:11px;margin-left:6px;">
+        ⚠ overridden → ${esc(ghOwner)}/${esc(ghRepo)}</span>`;
+    } else if (ghOwner !== p.owner || ghRepo !== p.repo) {
+      resolvedNote = `<span style="color:var(--c-muted);font-size:11px;margin-left:6px;">
+        → ${esc(ghOwner)}/${esc(ghRepo)}</span>`;
+    }
+
+    return `<div style="border-bottom:1px solid var(--c-border);">
+      <label class="provider-row" style="display:flex;align-items:flex-start;gap:10px;
+          padding:10px 14px;cursor:pointer;">
+        ${colDot}
+        <input type="checkbox" style="margin-top:3px;width:auto;"
+          ${active ? 'checked' : ''}
+          onchange="toggleProvider('${esc(ghOwner)}','${esc(ghRepo)}','${esc(p.branch||'main')}','${esc(pName)}',this.checked)">
+        <div style="flex:1;min-width:0;" id="${rowDomId}">
+          <div style="font-weight:600;font-size:13px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
+            ${esc(pName)}
+            <span class="mono" style="font-weight:400;font-size:11px;color:var(--c-muted);">
+              ${esc(p.owner||ghOwner)}/${esc(p.repo||ghRepo)}
+            </span>
+            ${resolvedNote}
+            <button class="btn btn-outline btn-sm" style="font-size:10px;padding:1px 6px;margin-left:4px;"
+              onclick="event.preventDefault();showOverrideForm('${esc(key)}','${esc(ghOwner)}','${esc(ghRepo)}')"
+              title="Override the GitHub owner/repo used to fetch recipes">✎ override</button>
+          </div>
+          <div style="font-size:12px;color:var(--c-muted);margin-top:2px;">${esc(p.description||'')}</div>
+          <div style="margin-top:4px;">${tags}</div>
         </div>
-        <div style="font-size:12px;color:var(--c-muted);margin-top:2px;">${esc(p.description||'')}</div>
-        <div style="margin-top:4px;">${tags}</div>
-      </div>
-      ${p.homepage ? `<a href="${esc(p.homepage)}" target="_blank" style="font-size:11px;color:var(--c-info);white-space:nowrap;">GitHub ↗</a>` : ''}
-    </label>`;
+        ${p.homepage ? `<a href="${esc(p.homepage)}" target="_blank" style="font-size:11px;color:var(--c-info);white-space:nowrap;margin-left:4px;">GitHub ↗</a>` : ''}
+      </label>
+    </div>`;
   }).join('');
   renderProviderSummary();
 }
@@ -997,10 +1639,58 @@ function renderProviderSummary() {
   const el2 = el('provider-summary');
   if (!el2) return;
   const n = State.activeProviders.length;
-  el2.textContent = n
-    ? `${n} provider${n>1?'s':''} active — packages from: ${State.activeProviders.map(p=>p.name||p.repo).join(', ')}`
-    : 'No providers selected — the Packages tab will be empty.';
-  el2.className = n ? 'alert alert-ok' : 'alert alert-warn';
+  if (!n) {
+    el2.innerHTML = 'No providers selected — the Packages tab will be empty.';
+    el2.className = 'alert alert-warn';
+    return;
+  }
+  const dots = State.activeProviders.map((p, i) => {
+    const col = PROVIDER_PALETTE[i % PROVIDER_PALETTE.length];
+    return `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px;">
+      <span style="width:10px;height:10px;border-radius:50%;background:${col.dot};flex-shrink:0;"></span>
+      <span>${esc(p.name || p.repo)}</span>
+    </span>`;
+  }).join('');
+  el2.innerHTML = `<span style="font-weight:600;">${n} provider${n>1?'s':''} active</span>
+    <span style="color:var(--c-muted);margin:0 6px;">·</span>
+    <span style="font-size:12px;">${dots}</span>`;
+  el2.className = 'alert alert-ok';
+
+  // Also refresh the order panel if it's visible.
+  renderProviderOrder();
+}
+
+// Renders the compact ordered list of active providers with ↑↓ reorder buttons.
+// The order defines recipe search priority: when the same package name exists in
+// multiple providers the first (topmost) match is used.
+function renderProviderOrder() {
+  const panel = el('provider-order');
+  if (!panel) return;
+  const ap = State.activeProviders;
+  if (!ap.length) {
+    panel.innerHTML = '<div style="font-size:12px;color:var(--c-muted);padding:4px 0;">No providers selected.</div>';
+    return;
+  }
+  panel.innerHTML = ap.map((p, i) => {
+    const col   = PROVIDER_PALETTE[i % PROVIDER_PALETTE.length];
+    const name  = esc(p.name || p.repo);
+    const isFirst = i === 0;
+    const isLast  = i === ap.length - 1;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;
+                         border-bottom:${isLast ? 'none' : '1px solid var(--c-border)'};">
+      <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${col.dot};"></span>
+      <span style="font-size:12px;font-weight:600;color:var(--c-fg);flex:1;min-width:0;
+                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+            title="${name}">${name}</span>
+      <span style="font-size:11px;color:var(--c-muted);margin-right:4px;">priority ${i + 1}</span>
+      <button class="btn btn-outline btn-sm" style="padding:1px 7px;font-size:12px;line-height:1.4;"
+        ${isFirst ? 'disabled' : ''}
+        onclick="moveProvider(${i}, -1)" title="Increase priority (move up)">↑</button>
+      <button class="btn btn-outline btn-sm" style="padding:1px 7px;font-size:12px;line-height:1.4;"
+        ${isLast ? 'disabled' : ''}
+        onclick="moveProvider(${i}, 1)" title="Decrease priority (move down)">↓</button>
+    </div>`;
+  }).join('');
 }
 
 function applyConfig() {
@@ -1037,7 +1727,7 @@ async function saveToken() {
     if (!res.ok) throw new Error('Invalid token or insufficient permissions');
     const user = await res.json();
     State.token = tok;
-    sessionStorage.setItem('gh_token', tok);
+    storeItem('gh_token', tok);
     hideModal('auth-modal');
     setAuthStatus(true, user.login);
     refreshAll();
@@ -1053,6 +1743,77 @@ function setAuthStatus(ok, label = '') {
   el('auth-btn').textContent = ok ? 'Change' : 'Connect';
 }
 
+// ── Help (README.md renderer) ──────────────────────────────────────────────
+
+// Load marked.js from CDN on first use.
+function ensureMarked() {
+  if (window.marked) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js';
+    s.onload  = resolve;
+    s.onerror = () => reject(new Error('Could not load marked.js from CDN'));
+    document.head.appendChild(s);
+  });
+}
+
+async function loadHelp() {
+  if (State._helpLoaded) return;
+
+  const content = el('help-readme-content');
+  if (!content) return;
+
+  // Owner/repo may come from URL detection (no auth required) or from the
+  // connected session.  Either way the README is public and readable without
+  // a token via raw.githubusercontent.com.
+  const owner  = State.owner  || 'bitsorg';
+  const repo   = State.repo   || 'bits-console';
+  const branch = State.branch || 'main';   // set by Pages API in loadConfig()
+  const base   = `https://github.com/${owner}/${repo}/blob/${branch}`;
+
+  const ghLink  = el('help-gh-link');
+  const refLink = el('help-ref-link');
+  if (ghLink)  ghLink.href  = `${base}/README.md`;
+  if (refLink) refLink.href = `${base}/REFERENCE.md`;
+
+  try {
+    await ensureMarked();
+
+    // Fetch the raw markdown.  Two paths:
+    // 1. raw.githubusercontent.com — CDN, no auth needed for public repos,
+    //    plain text (no base64 wrapping).  May be blocked by some proxies.
+    // 2. GitHub Contents API — same authenticated channel used everywhere else
+    //    in the app; always works when the token is valid.
+    let md = '';
+    try {
+      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/README.md`;
+      const hdrs   = {};
+      if (State.token) hdrs['Authorization'] = `Bearer ${State.token}`;
+      const res = await fetch(rawUrl, { headers: hdrs });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      md = await res.text();
+    } catch {
+      // Raw CDN unreachable (proxy / network restriction) — fall back to API.
+      const data = await ghGet(`/repos/${owner}/${repo}/contents/README.md`);
+      md = atob((data.content || '').replace(/[\r\n]/g, ''));
+    }
+
+    window.marked.setOptions({ gfm: true, breaks: false });
+    content.innerHTML = `<div class="md-body">${window.marked.parse(md)}</div>`;
+    State._helpLoaded = true;
+  } catch (e) {
+    content.innerHTML =
+      `<div style="font-size:13px;">
+         <p style="color:var(--c-muted);margin-bottom:12px;">
+           Could not load README.md — ${esc(e.message)}.
+         </p>
+         <a href="${esc(base + '/README.md')}" target="_blank" class="btn btn-outline">
+           📖 View README on GitHub ↗
+         </a>
+       </div>`;
+  }
+}
+
 // ── Navigation ─────────────────────────────────────────────────────────────
 function nav(tab) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -1060,17 +1821,20 @@ function nav(tab) {
   el('tab-' + tab).classList.add('active');
   el('nav-' + tab).classList.add('active');
   if (tab === 'dashboard') loadDashboard();
-  if (tab === 'packages')  loadPackages();
+  if (tab === 'packages')  { if (!State._packagesLoaded) loadPackages(); else filterPackages(); }
   if (tab === 'builds')    { loadBuilds(); startBuildPoll(); }
   if (tab === 'cvmfs')     loadCvmfsStatus();
+  if (tab === 'schedules') loadSchedules();
   if (tab === 'settings')  renderSettings();
+  if (tab === 'help')      loadHelp();
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
 async function loadDashboard() {
   try {
+    const wf = encodeURIComponent((State.config || {}).publish_workflow || 'cvmfs-publish.yml');
     const [runs, cvmfs] = await Promise.all([
-      ghGet(`/repos/${State.owner}/${State.repo}/actions/runs?per_page=20`),
+      ghGet(`/repos/${State.owner}/${State.repo}/actions/workflows/${wf}/runs?per_page=20`),
       loadCvmfsStatusData(),
     ]);
     const runList = runs.workflow_runs || [];
@@ -1082,7 +1846,10 @@ async function loadDashboard() {
     el('stat-pkgs').textContent   = State.packages.length || '—';
     updateRunningBadge(active);
     renderRunsTable(runList.slice(0, 10));
-  } catch(e) { showFetchError('dash-sub', e); }
+  } catch(e) {
+    if (!/404|Not Found/i.test(e.message)) showFetchError('dash-sub', e);
+    // 404 = workflow not yet created; silently show empty dashboard
+  }
 }
 
 function renderRunsTable(runs) {
@@ -1105,10 +1872,12 @@ function renderRunsTable(runs) {
 
 // ── Packages ───────────────────────────────────────────────────────────────
 async function loadPackages() {
+  State._packagesLoaded = false;
   el('pkg-tbody').innerHTML = '<tr><td colspan="7" class="loading">Fetching package list…</td></tr>';
   try {
     const recipes = await getRecipeRepos();
     State.packages = recipes;
+    State._packagesLoaded = true;
     el('stat-pkgs').textContent = recipes.length;
     await loadCvmfsStatusData();
     filterPackages();
@@ -1118,7 +1887,8 @@ async function loadPackages() {
 }
 
 async function getRecipeRepos() {
-  const repoList = State.activeProviders;
+  // Deduplicate defensively — guards against any duplicate that slipped through.
+  const repoList = deduplicateProviders(State.activeProviders);
   if (!repoList.length) {
     el('pkg-tbody').innerHTML = `<tr><td colspan="7"><div class="alert alert-warn" style="margin:0;">
       No recipe repositories selected.
@@ -1127,20 +1897,45 @@ async function getRecipeRepos() {
     </div></td></tr>`;
     return [];
   }
-  const all = [];
+
+  const all   = [];
+  const BATCH = 50;   // concurrent raw fetches per round
+
   for (const rr of repoList) {
     const owner  = rr.owner  || State.owner;
     const repo   = rr.repo;
-    const branch = rr.branch || 'main';
+    let   branch = rr.branch || 'main';
     const label  = rr.name   || `${owner}/${repo}`;
     if (!repo) continue;
     try {
-      const tree = await ghGet(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
-      const shFiles = (tree.tree || []).filter(f => f.type === 'blob' && f.path.match(/^[^/]+\.sh$/));
-      const batch = 30;
-      for (let i = 0; i < Math.min(shFiles.length, 300); i += batch) {
-        const chunk = shFiles.slice(i, i + batch);
-        const parsed = await Promise.all(chunk.map(f => fetchRecipe(owner, repo, f.path)));
+      // Fetch the recursive tree.  If the branch doesn't exist (e.g. the repo
+      // uses 'master' but the entry says 'main'), look up the real default
+      // branch from the repo metadata and retry once.
+      let tree;
+      try {
+        tree = await ghGet(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+      } catch (treeErr) {
+        if (!/404|not found/i.test(treeErr.message)) throw treeErr;
+        const meta = await ghGet(`/repos/${owner}/${repo}`);
+        const def  = meta.default_branch || 'master';
+        if (def === branch) throw treeErr;   // same branch — not a naming issue
+        branch = def;
+        tree   = await ghGet(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+      }
+      if (tree.truncated) console.warn(`Tree truncated for ${label} — some packages may be missing`);
+      // Match .sh files at any depth; non-bits-recipe files are filtered out
+      // later in parseRecipe() by checking for a package: YAML field.
+      const shFiles = (tree.tree || []).filter(f => f.type === 'blob' && f.path.endsWith('.sh'));
+      const total   = shFiles.length;
+
+      for (let i = 0; i < total; i += BATCH) {
+        const done  = Math.min(i + BATCH, total);
+        el('pkg-tbody').innerHTML =
+          `<tr><td colspan="7" class="loading">
+             Loading <strong>${esc(label)}</strong> — ${done} / ${total} files…
+           </td></tr>`;
+        const chunk  = shFiles.slice(i, i + BATCH);
+        const parsed = await Promise.all(chunk.map(f => fetchRecipe(owner, repo, branch, f)));
         all.push(...parsed.filter(Boolean).map(p => ({ ...p, _source: label })));
       }
     } catch(e) { console.warn('recipe repo error:', rr, e.message); }
@@ -1148,18 +1943,40 @@ async function getRecipeRepos() {
   return all.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function fetchRecipe(owner, repo, path) {
+// Fetch a single recipe file.
+// Primary path: raw.githubusercontent.com (CDN-served, no API rate-limit cost,
+//   returns plain text — much faster than the Contents API for large repos).
+// Fallback: Git Blob API using the SHA already in the tree (works for private repos
+//   and for commits not yet propagated to the raw CDN).
+async function fetchRecipe(owner, repo, branch, file) {
+  // raw.githubusercontent.com path
   try {
-    const data = await ghGet(`/repos/${owner}/${repo}/contents/${path}`);
-    const text = atob(data.content.replace(/\n/g,''));
-    return parseRecipe(text, path);
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file.path}`;
+    const hdrs   = {};
+    if (State.token) hdrs['Authorization'] = `Bearer ${State.token}`;
+    const res = await fetch(rawUrl, { headers: hdrs });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    return parseRecipe(text, file.path, { owner, repo });
+  } catch { /* fall through to blob API */ }
+
+  // Git Blob API fallback (SHA from the tree — no extra lookup needed)
+  try {
+    const data = await ghGet(`/repos/${owner}/${repo}/git/blobs/${file.sha}`);
+    const text = atob((data.content || '').replace(/[\r\n]/g, ''));
+    return parseRecipe(text, file.path, { owner, repo });
   } catch { return null; }
 }
 
-function parseRecipe(text, path) {
-  const name = path.replace(/^.*\//, '').replace(/\.sh$/, '');
-  const yaml = text.split(/^---\s*$/m)[0] || '';
+function parseRecipe(text, path, src = {}) {
+  const name   = path.replace(/^.*\//, '').replace(/\.sh$/, '');
+  const parts  = text.split(/^---\s*$/m);
+  const yaml   = parts[0] || '';
+  const script = parts.slice(1).join('---\n').trim();  // everything after first ---
   const fields = parseSimpleYaml(yaml);
+
+  // Skip files that are not bits recipes (must declare at least package: or version:).
+  if (!fields.package && !fields.version) return null;
 
   // Collect all list-valued fields (patches, requires, etc.)
   const lists = {};
@@ -1182,10 +1999,12 @@ function parseRecipe(text, path) {
     label:       fields.label      || '',
     patches,
     requires,
-    fields,      // full parsed YAML for the detail view
+    fields,          // full parsed YAML for the detail view
     cvmfsStatus: 'pending',
-    _path: path,
-    _rawYaml: yaml,
+    _path:   path,
+    _owner:  src.owner || '',
+    _repo:   src.repo  || '',
+    _script: script,  // bash recipe body after the --- separator
   };
 }
 
@@ -1211,7 +2030,7 @@ function filterPackages() {
         </a>
       </td>
       <td><span class="pkg-version">${esc(p.version)}</span></td>
-      <td><span class="tag" style="background:#f0f7ff;color:#0550ae;">${esc(p._source||'')}</span></td>
+      <td>${sourceTag(p._source)}</td>
       <td><span class="pkg-desc" title="${esc(p.description)}">${esc(p.description)}</span></td>
       <td>${p.patches.length ? `<span class="badge badge-success">${p.patches.length} patch${p.patches.length>1?'es':''}</span>` : '<span class="text-muted">—</span>'}</td>
       <td>${cvmfsStatusBadge(p.cvmfsStatus)}</td>
@@ -1270,7 +2089,9 @@ async function triggerBuild() {
   const jobs       = el('bm-jobs').value.trim() || '0';
   const config_dir = el('bm-config-dir').value.trim();
   const extra_args = el('bm-extra-args').value.trim();
-  const wf         = (State.config || {}).publish_workflow || 'cvmfs-publish.yml';
+  const wf           = (State.config || {}).publish_workflow || 'cvmfs-publish.yml';
+  const bits_rc      = buildBitsRc();
+  const runner_group = ((State.config || {}).runner_group || '').trim();
 
   if (!pkg)    { showBmError('Package name is required.'); return; }
   if (!target) { showBmError('CVMFS target path is required.'); return; }
@@ -1285,6 +2106,8 @@ async function triggerBuild() {
           version:          ver,
           platform:         plat,
           cvmfs_target:     target,
+          bits_rc:          bits_rc,
+          runner_group:     runner_group,
           rebuild:          String(rebuild),
           no_deps:          String(no_deps),
           debug:            String(debug),
@@ -1316,14 +2139,19 @@ function showPackageDetail(pkgName) {
   State._detailPkg = pkg;
 
   el('pd-title').textContent    = pkg.name;
-  el('pd-subtitle').textContent = `${pkg._source || ''} • ${pkg._path || ''}`;
+  const _src = pkg._source || '';
+  const _col = _src ? providerPalette(_src).dot : 'var(--c-muted)';
+  el('pd-subtitle').innerHTML =
+    (_src ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;`+
+            `background:${_col};margin-right:5px;vertical-align:middle;"></span>` : '') +
+    esc(_src) + (_src && pkg._path ? ' • ' : '') + esc(pkg._path || '');
   el('pd-build-btn').onclick    = () => buildFromDetail();
 
   // Metadata table
   const skipKeys = new Set(['package', 'version', 'description', 'patches', 'requires']);
   const metaRows = [
     ['Version',     `<span class="mono">${esc(pkg.version)}</span>`],
-    ['Source',      `<span class="tag" style="background:#f0f7ff;color:#0550ae;">${esc(pkg._source||'')}</span>`],
+    ['Source',      sourceTag(pkg._source)],
     ['CVMFS',       cvmfsStatusBadge(pkg.cvmfsStatus)],
     ['Description', esc(pkg.description) || '<span class="text-muted">—</span>'],
     pkg.homepage ? ['Homepage', `<a href="${esc(pkg.homepage)}" target="_blank">${esc(pkg.homepage)}</a>`] : null,
@@ -1349,8 +2177,38 @@ function showPackageDetail(pkgName) {
     pSection.style.display = 'none';
   }
 
+  // Recipe script panel
+  const scriptBody = pkg._script || '# (recipe script not available)';
+  el('pd-recipe-body').textContent = scriptBody;
+  el('pd-recipe-path').textContent = pkg._path || '';
+  const ghLink = el('pd-recipe-gh-link');
+  if (pkg._owner && pkg._repo && pkg._path) {
+    ghLink.href = `https://github.com/${pkg._owner}/${pkg._repo}/blob/main/${pkg._path}`;
+    ghLink.style.display = 'inline';
+  } else {
+    ghLink.style.display = 'none';
+  }
+  // Always open on the history tab.
+  switchDetailTab('history');
+
   showModal('pkg-detail-modal');
   loadPackageBuildHistory(pkg.name);
+}
+
+function switchDetailTab(tab) {
+  ['history', 'recipe', 'deps', 'licenses'].forEach(t => {
+    const panel = el(`pd-panel-${t}`);
+    const btn   = el(`pd-tab-${t}`);
+    const on    = t === tab;
+    if (panel) panel.style.display    = on ? 'block' : 'none';
+    if (btn) {
+      btn.style.color        = on ? 'var(--c-info)'            : 'var(--c-muted)';
+      btn.style.borderBottom = on ? '2px solid var(--c-info)'  : '2px solid transparent';
+      btn.style.fontWeight   = on ? '600'                      : '400';
+    }
+  });
+  if (tab === 'deps')     renderDepsPanel();
+  if (tab === 'licenses') renderLicensesPanel();
 }
 
 function buildFromDetail() {
@@ -1414,7 +2272,10 @@ async function loadPackageBuildHistory(pkgName) {
         </tbody>
       </table>`;
   } catch(e) {
-    el('pd-history').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    if (/404|Not Found/i.test(e.message))
+      el('pd-history').innerHTML = '<div class="empty" style="padding:20px;"><p>Workflow not found — no build history available.</p></div>';
+    else
+      el('pd-history').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
   }
 }
 
@@ -1450,7 +2311,8 @@ function reBuildFromHistory(pkgName, version, platform) {
 // ── Builds tab ─────────────────────────────────────────────────────────────
 async function loadBuilds() {
   const filter = el('build-filter').value;
-  const url = `/repos/${State.owner}/${State.repo}/actions/runs?per_page=30`
+  const wf     = encodeURIComponent((State.config || {}).publish_workflow || 'cvmfs-publish.yml');
+  const url = `/repos/${State.owner}/${State.repo}/actions/workflows/${wf}/runs?per_page=30`
     + (filter ? `&status=${filter}` : '');
   try {
     const data = await ghGet(url);
@@ -1459,7 +2321,12 @@ async function loadBuilds() {
     updateRunningBadge(active);
     el('build-last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
     renderBuildsList(runs);
-  } catch(e) { el('builds-list').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`; }
+  } catch(e) {
+    if (/404|Not Found/i.test(e.message))
+      el('builds-list').innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><p>Workflow not found — check <code>publish_workflow</code> in <code>ui-config.yaml</code>.</p></div>';
+    else
+      el('builds-list').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+  }
 }
 
 function renderBuildsList(runs) {
@@ -1589,9 +2456,11 @@ async function loadCvmfsStatusData() {
 async function loadCvmfsStatus() {
   el('cvmfs-tbody').innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
   await loadCvmfsStatusData();
-  // Merge workflow run history to enrich status
+  // Merge successful workflow run history to enrich status — scope to the
+  // publish workflow only so GitHub Pages deployment runs are excluded.
   try {
-    const runs = await ghGet(`/repos/${State.owner}/${State.repo}/actions/runs?per_page=100`);
+    const wf   = encodeURIComponent((State.config || {}).publish_workflow || 'cvmfs-publish.yml');
+    const runs = await ghGet(`/repos/${State.owner}/${State.repo}/actions/workflows/${wf}/runs?per_page=100`);
     (runs.workflow_runs || []).forEach(r => {
       if (r.conclusion !== 'success') return;
       const title = r.display_title || '';
@@ -1666,6 +2535,10 @@ function renderSettings() {
     <tr><td>CVMFS prefix</td><td><code>${c.cvmfs_prefix||'—'}</code></td></tr>
     <tr><td>Platforms</td><td>${getPlatforms().map(p=>`<code>${p}</code>`).join(' ')}</td></tr>
     <tr><td>Workflow</td><td><code>${c.publish_workflow||'cvmfs-publish.yml'}</code></td></tr>
+    <tr><td>Runner group</td><td>${c.runner_group ? `<code>${esc(c.runner_group)}</code>` : '<span style="color:var(--c-muted)">any (unset)</span>'}</td></tr>
+    <tr><td>Spool</td><td><code>${esc((c.spool_user||'?')+'@'+(c.spool_host||'?')+':'+(c.spool_path||'?'))}</code></td></tr>
+    <tr><td>SSH key file</td><td>${c.ssh_key_file ? `<code>${esc(c.ssh_key_file)}</code>` : '<span style="color:var(--c-muted)">unset — using SPOOL_SSH_KEY secret</span>'}</td></tr>
+    <tr><td>Config repo</td><td>${c.config_repo ? `<code>${esc(c.config_repo)}</code>` : '<span style="color:var(--c-muted)">unset — using BITS_CONFIG_REPO variable</span>'}</td></tr>
   `;
   // Show editable repo panel only for local dev
   const editPanel = el('settings-repo-edit');
@@ -1686,14 +2559,151 @@ function renderSettings() {
 
   // Providers
   renderProviders();
+
+  // Persistence panel
+  renderPersistenceSettings();
+}
+
+// ── Config persistence ─────────────────────────────────────────────────────
+
+function isPersistEnabled() {
+  try { return localStorage.getItem('bits_persist') === 'true'; } catch { return false; }
+}
+
+function renderPersistenceSettings() {
+  const panel = el('persistence-panel');
+  if (!panel) return;
+  const on = isPersistEnabled();
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
+        <input type="checkbox" id="persist-toggle" ${on ? 'checked' : ''}
+               onchange="togglePersistence(this.checked)"
+               style="width:16px;height:16px;accent-color:var(--c-info);">
+        Remember me — persist token, repository, and providers across browser sessions
+      </label>
+    </div>
+    ${on ? `<div class="alert alert-info" style="margin-bottom:16px;font-size:13px;">
+      Your Personal Access Token is stored in <code>localStorage</code> on this device.
+      Disable <em>Remember me</em> and reload to clear it.
+    </div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-outline" onclick="exportConfig()" title="Download current settings as JSON">
+        ⬇ Export config
+      </button>
+      <label class="btn btn-outline" style="cursor:pointer;margin:0;" title="Restore settings from a previously exported JSON file">
+        ⬆ Import config
+        <input type="file" accept=".json,application/json" style="display:none;"
+               onchange="importConfig(this)">
+      </label>
+    </div>`;
+}
+
+function togglePersistence(enabled) {
+  try {
+    if (enabled) {
+      localStorage.setItem('bits_persist', 'true');
+      // Immediately push current session values into localStorage.
+      const keys = ['gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers', 'bits_provider_overrides'];
+      for (const k of keys) {
+        const v = sessionStorage.getItem(k);
+        if (v !== null) localStorage.setItem(k, v);
+      }
+    } else {
+      // Remove the flag and all persisted values.
+      ['bits_persist', 'gh_token', 'bits_owner', 'bits_repo', 'bits_active_providers', 'bits_provider_overrides']
+        .forEach(k => localStorage.removeItem(k));
+    }
+  } catch { /* private-browsing */ }
+  renderPersistenceSettings();
+}
+
+function exportConfig() {
+  const cfg = {
+    _version:          1,
+    owner:             State.owner,
+    repo:              State.repo,
+    token:             State.token,
+    providers:         State.activeProviders,
+    providerOverrides: State.providerOverrides,
+  };
+  const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'bits-console-config.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+function importConfig(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const cfg = JSON.parse(e.target.result);
+      if (typeof cfg !== 'object') throw new Error('Not a valid config file');
+
+      // Apply token
+      if (cfg.token) {
+        State.token = cfg.token;
+        storeItem('gh_token', cfg.token);
+      }
+      // Apply repo
+      if (cfg.owner && cfg.repo) {
+        State.owner = cfg.owner;
+        State.repo  = cfg.repo;
+        storeItem('bits_owner', cfg.owner);
+        storeItem('bits_repo',  cfg.repo);
+      }
+      // Apply provider overrides (before active providers so resolution is correct)
+      if (cfg.providerOverrides && typeof cfg.providerOverrides === 'object') {
+        State.providerOverrides = cfg.providerOverrides;
+        storeItem('bits_provider_overrides', JSON.stringify(State.providerOverrides));
+        // Re-apply overrides to cached provider list
+        State.providers = State.providers.map(p => {
+          const ov = State.providerOverrides[providerKey(p)];
+          return ov
+            ? { ...p, _ghOwner: ov.owner, _ghRepo: ov.repo, _overridden: true }
+            : { ...p, _ghOwner: resolveGhOwner(p), _ghRepo: resolveGhRepo(p), _overridden: false };
+        });
+      }
+      // Apply providers
+      if (Array.isArray(cfg.providers) && cfg.providers.length) {
+        State.activeProviders = deduplicateProviders(
+          cfg.providers.map(p => normaliseProviderEntry(p))
+        );
+        storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
+      }
+
+      // Update UI and reload data
+      renderSettings();
+      refreshAll();
+      // Brief success flash
+      const panel = el('persistence-panel');
+      if (panel) {
+        const flash = document.createElement('div');
+        flash.className = 'alert alert-info';
+        flash.style.cssText = 'margin-top:12px;font-size:13px;';
+        flash.textContent = '✓ Config imported successfully.';
+        panel.appendChild(flash);
+        setTimeout(() => flash.remove(), 3000);
+      }
+    } catch(err) {
+      alert('Import failed: ' + err.message);
+    }
+    // Reset file input so the same file can be re-selected later
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function applyRepoFromSettings() {
   const owner = el('settings-owner').value.trim();
   const repo  = el('settings-repo-name').value.trim();
   if (!owner || !repo) return;
-  sessionStorage.setItem('bits_owner', owner);
-  sessionStorage.setItem('bits_repo',  repo);
+  storeItem('bits_owner', owner);
+  storeItem('bits_repo',  repo);
   State.owner = owner;
   State.repo  = repo;
   refreshAll();
@@ -1707,11 +2717,639 @@ function addManualProvider() {
   const entry = { owner, repo, branch, name: `${owner}/${repo}` };
   if (!isProviderActive(entry)) {
     State.activeProviders.push(entry);
-    sessionStorage.setItem('bits_active_providers', JSON.stringify(State.activeProviders));
+    storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
     renderProviderSummary();
+    State._packagesLoaded = false;
+    loadPackages();
   }
   el('manual-owner').value = '';
   el('manual-repo').value  = '';
+}
+
+// ── Dependency tree ────────────────────────────────────────────────────────
+
+// Recursively build a tree node for pkgName from the in-memory package list.
+// visited  — Set of names already on the current path (cycle detection)
+// maxDepth — safety limit to prevent unbounded recursion
+// Return the highest-priority package for a given name.
+// Priority = position in State.activeProviders (lower index = higher priority).
+function findPkg(pkgName) {
+  const matches = State.packages.filter(p => p.name === pkgName);
+  if (!matches.length) return null;
+  if (matches.length === 1) return matches[0];
+  return matches.sort((a, b) => {
+    const rank = p => {
+      const idx = State.activeProviders.findIndex(
+        ap => (ap.name || `${ap.owner}/${ap.repo}`) === p._source
+      );
+      return idx < 0 ? 9999 : idx;
+    };
+    return rank(a) - rank(b);
+  })[0];
+}
+
+function buildDepTree(pkgName, visited = new Set(), maxDepth = 10) {
+  if (visited.has(pkgName))
+    return { name: pkgName, version: '', license: '', source: null, children: [], circular: true };
+  const pkg = findPkg(pkgName);
+  if (!pkg)
+    return { name: pkgName, version: '?',  license: '', source: null, children: [], missing: true };
+  if (maxDepth <= 0)
+    return { name: pkgName, version: pkg.version, license: '', source: pkg._source || null, children: [], truncated: true };
+  const next    = new Set([...visited, pkgName]);
+  const license = pkg.fields?.license || pkg.fields?.License || pkg.fields?.licence || '';
+  return {
+    name:     pkg.name,
+    version:  pkg.version,
+    license,
+    source:   pkg._source || null,
+    children: (pkg.requires || []).map(dep => buildDepTree(dep, next, maxDepth - 1)),
+    circular: false,
+    missing:  false,
+  };
+}
+
+// Collect every unique node in the tree (pre-order, skipping circular back-refs).
+function flattenDeps(node, seen = new Set(), result = []) {
+  if (seen.has(node.name)) return result;
+  seen.add(node.name);
+  result.push(node);
+  if (!node.circular) node.children.forEach(c => flattenDeps(c, seen, result));
+  return result;
+}
+
+// Render the tree as a plain-text ASCII art string (for the <pre> view).
+function depTreeText(node, prefix = '', isLast = true, isRoot = true) {
+  const connector  = isRoot ? '' : (isLast ? '└── ' : '├── ');
+  const childPfx   = isRoot ? '' : (isLast ? '    ' : '│   ');
+  const ver        = node.version && node.version !== '—' ? `  ${node.version}` : '';
+  const src        = node.source && !node.missing && !node.circular ? `  [${node.source}]` : '';
+  const annotation = node.circular  ? '  [↩ circular]'              :
+                     node.missing   ? '  [? not in active providers]' :
+                     node.truncated ? '  […depth limit reached]'      : '';
+  const line     = `${prefix}${connector}${node.name}${ver}${src}${annotation}\n`;
+  const children = (node.circular || node.truncated)
+    ? ''
+    : node.children.map((c, i) =>
+        depTreeText(c, prefix + childPfx, i === node.children.length - 1, false)
+      ).join('');
+  return line + children;
+}
+
+// Render the tree as an SVG left-to-right hierarchical graph.
+function depTreeSvg(root) {
+  const NW = 134, NH = 32, PX = 170, PY = 44;   // node box size, grid pitch
+
+  // Count leaf nodes (nodes with no children, or circular/truncated).
+  function leaves(n) {
+    if (n.circular || n.truncated || !n.children.length) return 1;
+    return n.children.reduce((s, c) => s + leaves(c), 0);
+  }
+
+  // Assign _x (depth) and _cy (centred y in leaf units) to every node.
+  function layout(n, x, yOff) {
+    n._x  = x;
+    n._cy = yOff + leaves(n) / 2;
+    if (!n.circular && !n.truncated) {
+      let cur = yOff;
+      n.children.forEach(c => { layout(c, x + 1, cur); cur += leaves(c); });
+    }
+  }
+  layout(root, 0, 0);
+
+  // Find bounding box.
+  function bounds(n, mx = 0, my = 0) {
+    mx = Math.max(mx, n._x); my = Math.max(my, n._cy);
+    if (!n.circular && !n.truncated) n.children.forEach(c => { [mx, my] = bounds(c, mx, my); });
+    return [mx, my];
+  }
+  const [maxX, maxCY] = bounds(root);
+  const W = (maxX + 1) * PX + NW + 16;
+  const H = Math.ceil(maxCY + 0.5) * PY + 16;
+
+  // Collect nodes and edges.
+  const nodes = [], edges = [];
+  function collect(n) {
+    const px = n._x  * PX + 8;
+    const py = (n._cy - 0.5) * PY + 8;
+    nodes.push({ ...n, px, py });
+    if (!n.circular && !n.truncated) {
+      n.children.forEach(c => {
+        const cy = (c._cy - 0.5) * PY + 8;
+        // Cubic bezier from right-centre of parent to left-centre of child
+        edges.push({
+          x1: px + NW, y1: py + NH / 2,
+          x2: c._x * PX + 8, y2: cy + NH / 2,
+        });
+        collect(c);
+      });
+    }
+  }
+  collect(root);
+
+  // Node colours: provider palette for known packages; status overrides for
+  // circular (red tint), missing (grey), truncated (amber).
+  const nodeFill   = n => n.circular  ? '#ffd7d7'
+                        : n.missing   ? '#f0f0f0'
+                        : n.truncated ? '#fff3cd'
+                        : (n.source ? providerPalette(n.source).fill   : '#ddf4ff');
+  const nodeStroke = n => n.circular  ? '#f5a5a5'
+                        : n.missing   ? '#ccc'
+                        : n.truncated ? '#fcd34d'
+                        : (n.source ? providerPalette(n.source).stroke : '#a3c8f5');
+  const textColor  = n => n.missing   ? '#888' : '#24292e';
+
+  const edgeSvg = edges.map(({ x1, y1, x2, y2 }) => {
+    const mx = (x1 + x2) / 2;
+    return `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"
+              fill="none" stroke="#c8d0d8" stroke-width="1.5"/>`;
+  }).join('');
+
+  const nodeSvg = nodes.map(n => {
+    const label = n.name.length > 16 ? n.name.slice(0, 15) + '…' : n.name;
+    const ver   = (n.version && n.version !== '—') ? n.version.slice(0, 18) : '';
+    const icon  = n.circular ? ' ↩' : n.missing ? ' ?' : n.truncated ? ' …' : '';
+    // Dashed border for missing packages
+    const strokeDash = n.missing ? 'stroke-dasharray="4 2"' : '';
+    return `<g>
+      <rect x="${n.px}" y="${n.py}" width="${NW}" height="${NH}" rx="5"
+            fill="${nodeFill(n)}" stroke="${nodeStroke(n)}" stroke-width="1.4" ${strokeDash}/>
+      <text x="${n.px + 8}" y="${n.py + 12}" font-family="monospace" font-size="10.5"
+            fill="${textColor(n)}" font-weight="${n._x === 0 ? 700 : 400}">
+        ${esc(label)}${esc(icon)}
+      </text>
+      <text x="${n.px + 8}" y="${n.py + 25}" font-family="monospace" font-size="9"
+            fill="#6a737d">${esc(ver)}</text>
+    </g>`;
+  }).join('');
+
+  // Legend — one swatch per active provider that appears in the tree, plus
+  // status entries for any special node types present.
+  const treeNodes   = flattenDeps(root);
+  const usedSources = [...new Set(treeNodes.map(n => n.source).filter(Boolean))];
+  const hasCircular = treeNodes.some(n => n.circular);
+  const hasMissing  = treeNodes.some(n => n.missing);
+  const hasTruncated = treeNodes.some(n => n.truncated);
+
+  const legendItems = [
+    ...usedSources.map(src => {
+      const col = providerPalette(src);
+      return { fill: col.fill, stroke: col.stroke, dash: false, label: src };
+    }),
+    ...(hasCircular  ? [{ fill: '#ffd7d7', stroke: '#f5a5a5', dash: false,  label: 'circular dependency' }] : []),
+    ...(hasMissing   ? [{ fill: '#f0f0f0', stroke: '#ccc',    dash: true,   label: 'not in active providers' }] : []),
+    ...(hasTruncated ? [{ fill: '#fff3cd', stroke: '#fcd34d', dash: false,  label: 'depth limit reached' }] : []),
+  ];
+
+  let legendSvg = '';
+  if (legendItems.length > 1) {
+    const LH = 22, LP = 10, SW = 14, SH = 12;
+    const LW = Math.max(...legendItems.map(it => it.label.length)) * 7 + SW + 28;
+    const totalH = legendItems.length * LH + LP * 2;
+    const lx = 8, ly = H + 8;
+    const swatches = legendItems.map((it, i) => {
+      const sy = ly + LP + i * LH;
+      const dash = it.dash ? 'stroke-dasharray="4 2"' : '';
+      return `<rect x="${lx + LP}" y="${sy}" width="${SW}" height="${SH}" rx="2"
+                    fill="${it.fill}" stroke="${it.stroke}" stroke-width="1.2" ${dash}/>
+              <text x="${lx + LP + SW + 8}" y="${sy + SH - 1}" font-family="sans-serif"
+                    font-size="10.5" fill="#444">${esc(it.label)}</text>`;
+    }).join('');
+    legendSvg = `<rect x="${lx}" y="${ly}" width="${LW}" height="${totalH}" rx="5"
+                       fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+                 ${swatches}`;
+  }
+
+  const totalH = H + (legendSvg ? legendItems.length * 22 + 28 : 0);
+  return `<svg width="${W}" height="${totalH}" style="display:block; min-width:${W}px;">
+    ${edgeSvg}${nodeSvg}${legendSvg}
+  </svg>`;
+}
+
+function renderDepsPanel() {
+  const pkg = State._detailPkg;
+  if (!pkg) return;
+
+  if (!pkg.requires || !pkg.requires.length) {
+    el('pd-deps-stats').textContent = '';
+    el('pd-deps-tree').textContent  = `${pkg.name} has no declared dependencies.`;
+    el('pd-deps-graph').innerHTML   = '<div class="empty" style="padding:16px;"><p>No dependencies.</p></div>';
+    return;
+  }
+
+  const root    = buildDepTree(pkg.name);
+  const allDeps = flattenDeps(root).slice(1);     // exclude root itself
+  const nMiss   = allDeps.filter(d => d.missing).length;
+  const nCirc   = allDeps.filter(d => d.circular).length;
+
+  el('pd-deps-stats').innerHTML =
+    `${allDeps.length} unique dependenc${allDeps.length === 1 ? 'y' : 'ies'}` +
+    (nMiss  ? ` · <span style="color:var(--c-muted);">${nMiss} not in active providers</span>` : '') +
+    (nCirc  ? ` · <span style="color:var(--c-danger);">${nCirc} circular</span>` : '');
+
+  el('pd-deps-tree').textContent = depTreeText(root).trimEnd();
+  el('pd-deps-graph').innerHTML  = depTreeSvg(root);
+}
+
+function renderLicensesPanel() {
+  const pkg = State._detailPkg;
+  if (!pkg) return;
+
+  const root = buildDepTree(pkg.name);
+  const all  = flattenDeps(root);
+
+  const rows = all.map(node => {
+    const p       = State.packages.find(p2 => p2.name === node.name);
+    const license = p
+      ? (p.fields?.license || p.fields?.License || p.fields?.licence || '—')
+      : '—';
+    return {
+      name:    node.name,
+      version: node.version || '—',
+      license,
+      isRoot:  node.name === pkg.name,
+      missing: node.missing,
+      circular: node.circular,
+    };
+  });
+
+  const knownLicenses = [...new Set(rows.map(r => r.license).filter(l => l !== '—'))];
+
+  const summaryHtml = knownLicenses.length
+    ? `<div class="alert alert-ok">
+         Licenses in use:&nbsp;
+         ${knownLicenses.map(l => `<strong>${esc(l)}</strong>`).join('&ensp;·&ensp;')}
+       </div>`
+    : `<div class="alert alert-warn">
+         No <code>license:</code> field found in any recipe YAML front matter.
+         Add <code>license: MIT</code> (or the appropriate SPDX identifier) to
+         each <code>.sh</code> recipe file to populate this view.
+       </div>`;
+
+  const tableHtml = `<table>
+    <thead><tr>
+      <th>Package</th><th>Version</th><th>License</th><th>Role</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r => `<tr>
+        <td style="font-family:var(--font-mono); font-size:12px;
+                   font-weight:${r.isRoot ? 700 : 400};">${esc(r.name)}</td>
+        <td class="mono" style="font-size:12px;">${esc(r.version)}</td>
+        <td style="font-family:var(--font-mono); font-size:12px;">
+          ${r.license !== '—'
+            ? `<span class="badge badge-success" style="font-weight:400;">${esc(r.license)}</span>`
+            : '<span class="text-muted">—</span>'}
+        </td>
+        <td>${r.isRoot    ? '<span class="badge badge-running">this package</span>'       :
+             r.circular  ? '<span class="badge badge-failure">circular</span>'           :
+             r.missing   ? '<span class="badge badge-skipped">not in providers</span>'   :
+                           '<span class="badge badge-pending">dependency</span>'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  el('pd-licenses-summary').innerHTML = summaryHtml;
+  el('pd-licenses-table').innerHTML   = tableHtml;
+}
+
+// ── Schedules ──────────────────────────────────────────────────────────────
+
+// btoa only handles Latin-1; this wrapper encodes any Unicode string safely.
+function toBase64Unicode(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+async function loadSchedules() {
+  if (!State.owner || !State.repo) return;
+  el('schedules-list').innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    let files;
+    try {
+      files = await ghGet(`/repos/${State.owner}/${State.repo}/contents/schedules`);
+    } catch(e) {
+      if (/404|Not Found/i.test(e.message)) {
+        el('schedules-list').innerHTML = `<div class="alert alert-info">
+          No <code>schedules/</code> folder found yet — click
+          <strong>+ New schedule file</strong> to create the first one.
+        </div>`;
+        return;
+      }
+      throw e;
+    }
+    const jsonFiles = (Array.isArray(files) ? files : []).filter(f => f.name.endsWith('.json'));
+    if (!jsonFiles.length) {
+      el('schedules-list').innerHTML =
+        '<div class="alert alert-info">No schedule files yet. Click <strong>+ New schedule file</strong> to create one.</div>';
+      return;
+    }
+    const loaded = await Promise.all(jsonFiles.map(f =>
+      ghGet(`/repos/${State.owner}/${State.repo}/contents/schedules/${f.name}`)
+        .then(data => {
+          const parsed = JSON.parse(atob(data.content.replace(/\n/g, '')));
+          parsed._sha = data.sha;
+          State.schedules[f.name] = parsed;
+          return { name: f.name, data: parsed };
+        })
+        .catch(e => ({ name: f.name, error: e.message }))
+    ));
+    renderSchedulesList(loaded);
+  } catch(e) {
+    el('schedules-list').innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+  }
+}
+
+function renderSchedulesList(files) {
+  const div = el('schedules-list');
+  if (!files.length) {
+    div.innerHTML = '<div class="alert alert-info">No schedule files. Create one with <strong>+ New schedule file</strong>.</div>';
+    return;
+  }
+  div.innerHTML = files.map(f => {
+    if (f.error) {
+      return `<div class="box" style="margin-bottom:12px;">
+        <div class="box-header"><span class="box-title mono">${esc(f.name)}</span></div>
+        <div class="box-body" style="padding:12px;">
+          <div class="alert alert-error">Failed to load: ${esc(f.error)}</div>
+        </div></div>`;
+    }
+    const d       = f.data;
+    const enabled = d.enabled !== false;
+    const entries = d.entries || [];
+    const active  = entries.filter(e => e.enabled !== false).length;
+    return `<div class="box" style="margin-bottom:16px;">
+      <div class="box-header" style="gap:8px; flex-wrap:wrap;">
+        <span class="box-title mono" style="font-size:14px;">${esc(f.name)}</span>
+        <span class="badge ${enabled ? 'badge-success' : 'badge-skipped'}">${enabled ? 'Enabled' : 'Disabled'}</span>
+        <span class="text-muted" style="font-size:12px;">
+          ⏰&nbsp;<code>${esc(d.cron || '—')}</code>
+          &nbsp;·&nbsp;${active}/${entries.length} entries active
+        </span>
+        <div style="flex:1;"></div>
+        <button class="btn btn-outline btn-sm"
+          onclick="toggleScheduleFileEnabled('${esc(f.name)}')">
+          ${enabled ? 'Disable' : 'Enable'}
+        </button>
+        <button class="btn btn-outline btn-sm"
+          onclick="openSeModal('${esc(f.name)}','','')">+ Add entry</button>
+        <button class="btn btn-danger btn-sm"
+          onclick="deleteScheduleFile('${esc(f.name)}')">Delete file</button>
+      </div>
+      ${d.description ? `<div style="padding:6px 14px 4px; font-size:12px; color:var(--c-muted);">${esc(d.description)}</div>` : ''}
+      <div class="box-body">
+        ${entries.length ? `
+          <table>
+            <thead><tr>
+              <th>Package</th><th>Version</th><th>Platform</th>
+              <th>CVMFS target</th><th>Flags</th>
+              <th style="text-align:center;">On</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${entries.map((e, i) => `<tr style="${e.enabled === false ? 'opacity:0.5;' : ''}">
+                <td><span class="mono" style="font-weight:600;">${esc(e.package || '—')}</span></td>
+                <td><span class="mono">${esc(e.version || 'latest')}</span></td>
+                <td><span class="mono">${esc(e.platform || '—')}</span></td>
+                <td class="mono" style="font-size:11px; max-width:160px; overflow:hidden;
+                    text-overflow:ellipsis; white-space:nowrap;" title="${esc(e.cvmfs_target || '')}">
+                  ${esc(e.cvmfs_target || '—')}</td>
+                <td style="font-size:11px;">
+                  ${e.rebuild  ? '<span class="tag">rebuild</span>'  : ''}
+                  ${e.no_deps  ? '<span class="tag">no-deps</span>'  : ''}
+                  ${e.debug    ? '<span class="tag">debug</span>'    : ''}
+                </td>
+                <td style="text-align:center;">
+                  <input type="checkbox" style="width:auto; cursor:pointer;"
+                    ${e.enabled !== false ? 'checked' : ''}
+                    onchange="setEntryEnabled('${esc(f.name)}',${i},this.checked)">
+                </td>
+                <td style="display:flex; gap:4px;">
+                  <button class="btn btn-outline btn-sm"
+                    onclick="showBuildModal('${esc(e.package||'')}','${esc(e.version||'')}')">
+                    ▶ Now</button>
+                  <button class="btn btn-danger btn-sm"
+                    onclick="deleteScheduleEntry('${esc(f.name)}',${i})">✕</button>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>` :
+          '<div class="empty" style="padding:16px;"><p>No entries — click <strong>+ Add entry</strong> to add packages.</p></div>'
+        }
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveScheduleFile(filename) {
+  const data = State.schedules[filename];
+  if (!data) return false;
+  const sha     = data._sha;
+  const payload = {
+    cron:        data.cron        || '',
+    description: data.description || '',
+    enabled:     data.enabled !== false,
+    entries:     data.entries     || [],
+  };
+  const content = toBase64Unicode(JSON.stringify(payload, null, 2) + '\n');
+  try {
+    const body = {
+      message: sha ? `schedules: update ${filename}` : `schedules: create ${filename}`,
+      content,
+    };
+    if (sha) body.sha = sha;
+    const res = await ghFetch(
+      `/repos/${State.owner}/${State.repo}/contents/schedules/${filename}`,
+      { method: 'PUT', body: JSON.stringify(body) }
+    );
+    if (res && res.content) data._sha = res.content.sha;
+    return true;
+  } catch(e) {
+    alert('Save failed: ' + e.message);
+    return false;
+  }
+}
+
+async function toggleScheduleFileEnabled(filename) {
+  const data = State.schedules[filename];
+  if (!data) return;
+  data.enabled = !(data.enabled !== false);
+  const ok = await saveScheduleFile(filename);
+  if (ok) loadSchedules();
+}
+
+async function setEntryEnabled(filename, idx, enabled) {
+  const data = State.schedules[filename];
+  if (!data || !data.entries[idx]) return;
+  data.entries[idx].enabled = enabled;
+  await saveScheduleFile(filename);
+  // Re-render from in-memory state (no full reload needed)
+  renderSchedulesList(
+    Object.entries(State.schedules).map(([name, d]) => ({ name, data: d }))
+  );
+}
+
+async function deleteScheduleEntry(filename, idx) {
+  if (!confirm('Remove this entry from the schedule?')) return;
+  const data = State.schedules[filename];
+  if (!data) return;
+  data.entries.splice(idx, 1);
+  const ok = await saveScheduleFile(filename);
+  if (ok) loadSchedules();
+}
+
+async function deleteScheduleFile(filename) {
+  if (!confirm(`Delete schedule file "${filename}"?\nThis action cannot be undone.`)) return;
+  const data = State.schedules[filename];
+  if (!data || !data._sha) {
+    alert('Cannot delete: SHA not known. Reload the Schedules tab first.');
+    return;
+  }
+  try {
+    await ghFetch(
+      `/repos/${State.owner}/${State.repo}/contents/schedules/${filename}`,
+      { method: 'DELETE', body: JSON.stringify({
+          message: `schedules: delete ${filename}`,
+          sha: data._sha,
+        })
+      }
+    );
+    delete State.schedules[filename];
+    loadSchedules();
+  } catch(e) { alert('Delete failed: ' + e.message); }
+}
+
+// ── Schedule modals ────────────────────────────────────────────────────────
+
+function showNewScheduleModal() {
+  if (!State.token) { showAuthModal(); return; }
+  el('ns-name').value = 'nightly.json';
+  el('ns-cron').value = '0 2 * * *';
+  el('ns-desc').value = '';
+  el('ns-error').style.display = 'none';
+  showModal('new-schedule-modal');
+  setTimeout(() => el('ns-name').focus(), 100);
+}
+
+async function createScheduleFile() {
+  let name = el('ns-name').value.trim();
+  if (!name) {
+    el('ns-error').textContent = 'File name is required.';
+    el('ns-error').style.display = 'block'; return;
+  }
+  if (!name.endsWith('.json')) name += '.json';
+  if (State.schedules[name]) {
+    el('ns-error').textContent = `"${name}" already exists.`;
+    el('ns-error').style.display = 'block'; return;
+  }
+  State.schedules[name] = {
+    cron:        el('ns-cron').value.trim(),
+    description: el('ns-desc').value.trim(),
+    enabled:     true,
+    entries:     [],
+  };
+  const ok = await saveScheduleFile(name);
+  if (ok) { hideModal('new-schedule-modal'); loadSchedules(); }
+}
+
+// Open the entry editor modal.
+//   filename  — pre-select this schedule file ('' to show selector)
+//   pkgName   — pre-fill package name ('' to leave blank)
+//   pkgVer    — pre-fill version ('' to leave blank)
+function openSeModal(filename, pkgName, pkgVer) {
+  if (!State.token) { showAuthModal(); return; }
+
+  // Populate file selector
+  const fileNames  = Object.keys(State.schedules);
+  const fileSelect = el('se-target-file');
+  fileSelect.innerHTML = fileNames.length
+    ? fileNames.map(n =>
+        `<option value="${esc(n)}" ${n === filename ? 'selected' : ''}>${esc(n)}</option>`
+      ).join('')
+    : '<option value="">— no schedule files —</option>';
+  // Hide the selector when there is exactly one file and it is pre-selected
+  el('se-file-row').style.display =
+    (fileNames.length === 1 && filename === fileNames[0]) ? 'none' : 'block';
+
+  // Pre-fill fields
+  el('se-package').value = pkgName || '';
+  el('se-version').value = (pkgVer && pkgVer !== '—') ? pkgVer : '';
+  el('se-rebuild').checked  = false;
+  el('se-no-deps').checked  = false;
+  el('se-debug').checked    = false;
+  el('se-jobs').value       = '0';
+  el('se-config-dir').value = '';
+  el('se-extra-args').value = '';
+
+  // Populate platform select from config
+  const pSel = el('se-platform');
+  pSel.innerHTML = '';
+  getPlatforms().forEach(p => {
+    const o = document.createElement('option');
+    o.value = p; o.textContent = p; pSel.appendChild(o);
+  });
+
+  updateSeTarget();
+  el('se-error').style.display = 'none';
+  el('se-modal-title').textContent = pkgName ? `Schedule — ${pkgName}` : 'Add schedule entry';
+  showModal('sched-entry-modal');
+}
+
+function updateSeTarget() {
+  const c      = State.config || {};
+  const prefix = c.cvmfs_prefix || '/cvmfs/sft.cern.ch/lcg/releases';
+  const pkg    = el('se-package').value.trim();
+  const ver    = el('se-version').value.trim();
+  const plat   = el('se-platform').value;
+  if (pkg) el('se-cvmfs-target').value = `${prefix}/${pkg}/${ver}/${plat}`;
+}
+
+async function saveScheduleEntry() {
+  const filename = el('se-target-file').value;
+  if (!filename) {
+    el('se-error').textContent = 'Select a schedule file.';
+    el('se-error').style.display = 'block'; return;
+  }
+  const data = State.schedules[filename];
+  if (!data) {
+    el('se-error').textContent = 'Schedule file not loaded — reload the Schedules tab.';
+    el('se-error').style.display = 'block'; return;
+  }
+  const pkg    = el('se-package').value.trim();
+  const target = el('se-cvmfs-target').value.trim();
+  if (!pkg)    { el('se-error').textContent = 'Package name is required.';    el('se-error').style.display = 'block'; return; }
+  if (!target) { el('se-error').textContent = 'CVMFS target path is required.'; el('se-error').style.display = 'block'; return; }
+
+  const entry = {
+    package:          pkg,
+    version:          el('se-version').value.trim(),
+    platform:         el('se-platform').value,
+    cvmfs_target:     target,
+    rebuild:          el('se-rebuild').checked,
+    no_deps:          el('se-no-deps').checked,
+    debug:            el('se-debug').checked,
+    jobs:             el('se-jobs').value.trim() || '0',
+    config_dir:       el('se-config-dir').value.trim(),
+    architecture:     '',
+    extra_build_args: el('se-extra-args').value.trim(),
+    enabled:          true,
+  };
+
+  data.entries = data.entries || [];
+  data.entries.push(entry);
+  const ok = await saveScheduleFile(filename);
+  if (ok) { hideModal('sched-entry-modal'); loadSchedules(); }
+}
+
+function scheduleFromDetail() {
+  const pkg       = State._detailPkg;
+  if (!pkg) return;
+  const fileNames = Object.keys(State.schedules);
+  if (!fileNames.length) {
+    if (confirm('No schedule files loaded. Go to the Schedules tab to create one?')) {
+      hideModal('pkg-detail-modal');
+      nav('schedules');
+    }
+    return;
+  }
+  openSeModal(fileNames[0], pkg.name, pkg.version);
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -1773,6 +3411,7 @@ function showFetchError(targetId, err) {
 }
 
 function refreshAll() {
+  State._helpLoaded = false;   // force Help to re-fetch README for new repo
   loadConfig().then(() => {
     loadDashboard();
     loadPackages();
@@ -1797,10 +3436,11 @@ document.addEventListener('keydown', e => {
     try {
       const user = await ghFetch('/user');
       setAuthStatus(true, user.login);
-    } catch { State.token = ''; sessionStorage.removeItem('gh_token'); }
+    } catch { State.token = ''; removeItem('gh_token'); }
   }
-  // Load providers from the central registry (public, no auth needed).
-  loadProviders();
+  // Load providers from the central registry first so _ghOwner/_ghRepo are
+  // always resolved before any checkbox or getRecipeRepos() call.
+  await loadProviders();
   // loadConfig shows the repo-setup modal if owner/repo are unknown.
   await loadConfig();
   if (!State.owner || !State.repo) return; // waiting for user input in modal
@@ -1809,7 +3449,8 @@ document.addEventListener('keydown', e => {
   // Auto-refresh running badge every 30s
   setInterval(async () => {
     try {
-      const data = await ghGet(`/repos/${State.owner}/${State.repo}/actions/runs?status=in_progress&per_page=5`);
+      const wf   = encodeURIComponent((State.config || {}).publish_workflow || 'cvmfs-publish.yml');
+      const data = await ghGet(`/repos/${State.owner}/${State.repo}/actions/workflows/${wf}/runs?status=in_progress&per_page=5`);
       updateRunningBadge((data.workflow_runs || []).length);
     } catch {}
   }, 30000);
