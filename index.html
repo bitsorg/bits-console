@@ -381,7 +381,33 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
   body { font-size: 13px; }
   .page-title { font-size: 17px; }
   table { font-size: 12px; }
-  #main { padding: 16px calc(16px + env(safe-area-inset-right, 0px)) 16px 16px; }
+}
+
+/* Mobile landscape: fix sidebar/main positioning absolutely so flexbox quirks
+   on Mobile Safari can never cause main to overlap the sidebar.              */
+@media (max-width: 899px) and (orientation: landscape) {
+  #layout {
+    position: relative;   /* anchor for absolutely-positioned #main */
+    display: block;       /* exit row-flex; use explicit positioning instead */
+    overflow: hidden;
+  }
+  #sidebar {
+    position: fixed;      /* always pinned to left edge, never covered        */
+    top: var(--hdr-h);
+    left: 0;
+    width: var(--sidebar-w);
+    height: calc(100% - var(--hdr-h));
+  }
+  #main {
+    position: absolute;
+    top: 0;
+    left: var(--sidebar-w);   /* starts exactly at right edge of sidebar      */
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px calc(16px + env(safe-area-inset-right, 0px)) 16px 16px;
+  }
 }
 
 /* < 600 px landscape  →  icon-only sidebar (44 px)                          */
@@ -493,7 +519,7 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
         color:#fff; border-radius:10px; font-size:10px; padding:1px 6px;"></span>
     </div>
     <div class="nav-item" onclick="nav('cvmfs')" id="nav-cvmfs">
-      <i class="icon">🗄</i> CVMFS Status
+      <i class="icon">🗄</i> CVMFS
     </div>
 
     <div class="nav-item" onclick="nav('schedules')" id="nav-schedules">
@@ -720,6 +746,245 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
         .help-readme-toolbar { display:flex; align-items:center; gap:10px;
                                margin-bottom:14px; }
       </style>
+
+      <!-- ── Configuration overview diagram (injected before bits Console §) ── -->
+      <!-- Hidden here; loadHelp() moves it before the bits Console heading.    -->
+      <div id="config-diagram" style="display:none;margin:20px 0 28px;">
+        <p style="color:var(--c-muted);font-size:13px;margin-bottom:14px;">
+          How to set up bits-console for your group or personal use — what lives in the
+          repository versus what is stored only in your browser.
+        </p>
+        <div style="overflow-x:auto;">
+<svg id="cfg-svg" viewBox="0 0 820 400" xmlns="http://www.w3.org/2000/svg"
+     style="width:100%;max-width:820px;height:auto;display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <defs>
+    <marker id="cfg-ah-green"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2ea44f"/></marker>
+    <marker id="cfg-ah-blue"   markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#0075ca"/></marker>
+    <marker id="cfg-ah-teal"   markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#1b7c83"/></marker>
+    <marker id="cfg-ah-orange" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#e36209"/></marker>
+    <filter id="cfg-shadow" x="-5%" y="-5%" width="115%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- ══ Row 0: Fork chain ═══════════════════════════════════════════════════ -->
+
+  <!-- Upstream template -->
+  <rect x="10" y="14" width="185" height="64" rx="8" fill="#24292e" filter="url(#cfg-shadow)"/>
+  <text x="102" y="37" text-anchor="middle" fill="#e6edf3" font-size="12" font-weight="700">📦 bitsorg/bits-console</text>
+  <text x="102" y="53" text-anchor="middle" fill="#8b949e" font-size="10.5">upstream template</text>
+  <text x="102" y="67" text-anchor="middle" fill="#8b949e" font-size="10.5">public · read-only</text>
+
+  <!-- Fork arrow -->
+  <line x1="195" y1="46" x2="248" y2="46" stroke="#2ea44f" stroke-width="1.8"
+        stroke-dasharray="5,3" marker-end="url(#cfg-ah-green)"/>
+  <text x="222" y="39" text-anchor="middle" fill="#2ea44f" font-size="10">fork</text>
+
+  <!-- Your fork -->
+  <rect x="250" y="14" width="215" height="64" rx="8" fill="#0d419d" filter="url(#cfg-shadow)"/>
+  <text x="357" y="37" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">🍴 your-org/bits-console</text>
+  <text x="357" y="53" text-anchor="middle" fill="#a5d6ff" font-size="10.5">your customised fork</text>
+  <text x="357" y="67" text-anchor="middle" fill="#a5d6ff" font-size="10.5">edit config · enable Pages</text>
+
+  <!-- Pages arrow -->
+  <line x1="465" y1="46" x2="518" y2="46" stroke="#2ea44f" stroke-width="1.8" marker-end="url(#cfg-ah-green)"/>
+  <text x="491" y="39" text-anchor="middle" fill="#2ea44f" font-size="10">Pages</text>
+
+  <!-- GitHub Pages (served app) -->
+  <rect x="520" y="14" width="290" height="64" rx="8" fill="#14532d" filter="url(#cfg-shadow)"/>
+  <text x="665" y="37" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">🌐 GitHub Pages (your console)</text>
+  <text x="665" y="53" text-anchor="middle" fill="#86efac" font-size="10.5">your-org.github.io/bits-console</text>
+  <text x="665" y="67" text-anchor="middle" fill="#86efac" font-size="10.5">served automatically on each push</text>
+
+  <!-- Vertical connector: your fork → file boxes below -->
+  <line x1="357" y1="78" x2="357" y2="112" stroke="#0075ca" stroke-width="1.6" stroke-dasharray="4,3" marker-end="url(#cfg-ah-blue)"/>
+  <text x="367" y="98" fill="#0075ca" font-size="9.5">edit</text>
+
+  <!-- ══ Row 1: Config files ══════════════════════════════════════════════════ -->
+
+  <!-- ui-config.yaml -->
+  <rect x="10" y="120" width="240" height="130" rx="8" fill="#1a3a1a" filter="url(#cfg-shadow)"/>
+  <text x="130" y="143" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">📄 ui-config.yaml</text>
+  <rect x="22" y="151" width="216" height="15" rx="3" fill="#22502a"/>
+  <text x="130" y="163" text-anchor="middle" fill="#86efac" font-size="10" font-family="monospace">core org configuration</text>
+  <text x="130" y="181" text-anchor="middle" fill="#a7f3d0" font-size="10.5">runner definitions &amp; hosts</text>
+  <text x="130" y="196" text-anchor="middle" fill="#a7f3d0" font-size="10.5">CVMFS repositories</text>
+  <text x="130" y="211" text-anchor="middle" fill="#a7f3d0" font-size="10.5">package sources &amp; providers</text>
+  <text x="130" y="226" text-anchor="middle" fill="#a7f3d0" font-size="10.5">workflow dispatch parameters</text>
+  <text x="130" y="241" text-anchor="middle" fill="#6ee7b7" font-size="9.5">⚠ commit to repo — shared by all users</text>
+
+  <!-- .github/workflows/ -->
+  <rect x="270" y="120" width="240" height="130" rx="8" fill="#1e2a3e" filter="url(#cfg-shadow)"/>
+  <text x="390" y="143" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">⚙ .github/workflows/</text>
+  <rect x="282" y="151" width="216" height="15" rx="3" fill="#243554"/>
+  <text x="390" y="163" text-anchor="middle" fill="#93c5fd" font-size="10" font-family="monospace">CI / CD actions</text>
+  <text x="390" y="181" text-anchor="middle" fill="#bfdbfe" font-size="10.5">build workflow (per platform)</text>
+  <text x="390" y="196" text-anchor="middle" fill="#bfdbfe" font-size="10.5">ingest / publish workflow</text>
+  <text x="390" y="211" text-anchor="middle" fill="#bfdbfe" font-size="10.5">admin / update workflow</text>
+  <text x="390" y="226" text-anchor="middle" fill="#bfdbfe" font-size="10.5">scheduled build triggers</text>
+  <text x="390" y="241" text-anchor="middle" fill="#93c5fd" font-size="9.5">⚠ commit to repo — triggers runners</text>
+
+  <!-- README.md -->
+  <rect x="530" y="120" width="280" height="130" rx="8" fill="#2a2a1e" filter="url(#cfg-shadow)"/>
+  <text x="670" y="143" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">📝 README.md  <tspan fill="#8b949e" font-weight="400">(optional)</tspan></text>
+  <rect x="542" y="151" width="256" height="15" rx="3" fill="#3a3a28"/>
+  <text x="670" y="163" text-anchor="middle" fill="#fde68a" font-size="10" font-family="monospace">custom help content</text>
+  <text x="670" y="181" text-anchor="middle" fill="#fef3c7" font-size="10.5">shown in the Help tab</text>
+  <text x="670" y="196" text-anchor="middle" fill="#fef3c7" font-size="10.5">team-specific docs &amp; notes</text>
+  <text x="670" y="211" text-anchor="middle" fill="#fef3c7" font-size="10.5">onboarding instructions</text>
+  <text x="670" y="226" text-anchor="middle" fill="#fef3c7" font-size="10.5">links to internal resources</text>
+  <text x="670" y="241" text-anchor="middle" fill="#fde68a" font-size="9.5">replace upstream docs with yours</text>
+
+  <!-- ══ Row 2: Browser-local + Legend ══════════════════════════════════════ -->
+
+  <!-- Browser local storage -->
+  <rect x="10" y="312" width="375" height="78" rx="8" fill="#242430" filter="url(#cfg-shadow)"/>
+  <text x="197" y="333" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">🔐 Browser — local only (never committed)</text>
+  <text x="80"  y="352" text-anchor="middle" fill="#c9d1d9" font-size="10.5">GitHub PAT token</text>
+  <text x="197" y="352" text-anchor="middle" fill="#c9d1d9" font-size="10.5">repo / branch selection</text>
+  <text x="320" y="352" text-anchor="middle" fill="#c9d1d9" font-size="10.5">UI preferences</text>
+  <text x="197" y="368" text-anchor="middle" fill="#8b949e" font-size="10">stored in browser localStorage · cleared on sign-out</text>
+  <text x="197" y="382" text-anchor="middle" fill="#8b949e" font-size="10">private to each person · not visible to other users</text>
+
+  <!-- Legend -->
+  <rect x="405" y="312" width="405" height="78" rx="6" fill="#f6f8fa" stroke="#e1e4e8" stroke-width="1"/>
+  <text x="607" y="330" text-anchor="middle" fill="#24292e" font-size="11" font-weight="600">Legend</text>
+  <line x1="416" y1="346" x2="450" y2="346" stroke="#2ea44f" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#cfg-ah-green)"/>
+  <text x="456" y="350" fill="#24292e" font-size="10">fork / GitHub Pages deploy</text>
+  <line x1="416" y1="362" x2="450" y2="362" stroke="#0075ca" stroke-width="2" marker-end="url(#cfg-ah-blue)"/>
+  <text x="456" y="366" fill="#24292e" font-size="10">edit in repository (shared, versioned)</text>
+  <line x1="416" y1="378" x2="450" y2="378" stroke="#8b949e" stroke-width="1.6" stroke-dasharray="3,3"/>
+  <text x="456" y="382" fill="#24292e" font-size="10">🔐 browser only — personal, not in repo</text>
+</svg>
+        </div>
+      </div>
+
+      <!-- ── Deployment architecture diagram (injected after Runner setup §) ── -->
+      <!-- Hidden here; loadHelp() moves it after the Runner setup heading.     -->
+      <div id="arch-diagram" style="display:none;margin:20px 0 28px;">
+        <p style="color:var(--c-muted);font-size:13px;margin-bottom:14px;">
+          How self-hosted runners, GitHub Actions, and CVMFS infrastructure interact.
+        </p>
+        <div style="overflow-x:auto;">
+<svg id="arch-svg" viewBox="0 0 820 460" xmlns="http://www.w3.org/2000/svg"
+     style="width:100%;max-width:820px;height:auto;display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <defs>
+    <marker id="ah-green"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2ea44f"/></marker>
+    <marker id="ah-blue"   markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#0075ca"/></marker>
+    <marker id="ah-orange" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#e36209"/></marker>
+    <marker id="ah-muted"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#8b949e"/></marker>
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- ══ Row 0: Browser + GitHub ══════════════════════════════════════════ -->
+  <rect x="10"  y="14" width="150" height="64" rx="8" fill="#243040" filter="url(#shadow)"/>
+  <text x="85"  y="38" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="700">🌐 Browser</text>
+  <text x="85"  y="54" text-anchor="middle" fill="#8b949e" font-size="10.5">bits-console</text>
+  <text x="85"  y="68" text-anchor="middle" fill="#8b949e" font-size="10.5">GitHub Pages</text>
+
+  <rect x="280" y="14" width="260" height="64" rx="8" fill="#1a2332" filter="url(#shadow)"/>
+  <text x="410" y="38" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="700">🐙 GitHub</text>
+  <text x="410" y="54" text-anchor="middle" fill="#8b949e" font-size="10.5">repository  ·  Actions API</text>
+  <text x="410" y="68" text-anchor="middle" fill="#8b949e" font-size="10.5">workflow dispatch &amp; secrets</text>
+
+  <!-- Browser → GitHub -->
+  <line x1="160" y1="46" x2="278" y2="46" stroke="#2ea44f" stroke-width="1.8"
+        stroke-dasharray="5,3" marker-end="url(#ah-green)"/>
+  <text x="219" y="40" text-anchor="middle" fill="#2ea44f" font-size="10">HTTPS API</text>
+
+  <!-- ══ Row 1: Build Host + Ingest Host ══════════════════════════════════ -->
+
+  <!-- Build Host -->
+  <rect x="10" y="142" width="215" height="126" rx="8" fill="#0d419d" filter="url(#shadow)"/>
+  <text x="117" y="164" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">🔨 Build Host</text>
+  <rect x="22"  y="172" width="191" height="16" rx="3" fill="#0550ae"/>
+  <text x="117" y="184" text-anchor="middle" fill="#a5d6ff" font-size="10" font-family="monospace">bits-build-&lt;platform&gt;</text>
+  <text x="117" y="203" text-anchor="middle" fill="#cae8ff" font-size="10.5">target OS (EL9, EL8 …)</text>
+  <text x="117" y="217" text-anchor="middle" fill="#cae8ff" font-size="10.5">bits CLI  ·  SSH key</text>
+  <text x="117" y="231" text-anchor="middle" fill="#cae8ff" font-size="10.5">one runner / platform</text>
+  <!-- bits-admin badge -->
+  <rect x="40"  y="242" width="154" height="16" rx="8" fill="#32341a"/>
+  <text x="117" y="254" text-anchor="middle" fill="#e3e08a" font-size="10">🛠 bits-admin (also on this host)</text>
+
+  <!-- Ingest Host -->
+  <rect x="255" y="142" width="215" height="126" rx="8" fill="#164f96" filter="url(#shadow)"/>
+  <text x="362" y="164" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">📥 Ingest Host</text>
+  <rect x="267" y="172" width="191" height="16" rx="3" fill="#1158b7"/>
+  <text x="362" y="184" text-anchor="middle" fill="#a5d6ff" font-size="10" font-family="monospace">bits-ingest</text>
+  <text x="362" y="203" text-anchor="middle" fill="#cae8ff" font-size="10.5">cvmfs_server ingest</text>
+  <text x="362" y="217" text-anchor="middle" fill="#cae8ff" font-size="10.5">mountless publisher</text>
+  <text x="362" y="231" text-anchor="middle" fill="#cae8ff" font-size="10.5">gateway API access</text>
+  <!-- bits-admin badge -->
+  <rect x="285" y="242" width="154" height="16" rx="8" fill="#32341a"/>
+  <text x="362" y="254" text-anchor="middle" fill="#e3e08a" font-size="10">🛠 bits-admin (also on this host)</text>
+
+  <!-- GitHub dispatch arrows → hosts -->
+  <path d="M 360,78 Q 270,110 210,140" fill="none" stroke="#2ea44f" stroke-width="1.6" marker-end="url(#ah-green)"/>
+  <text x="267" y="100" text-anchor="middle" fill="#2ea44f" font-size="9.5" transform="rotate(-22,267,100)">dispatch</text>
+  <path d="M 420,78 L 395,140" fill="none" stroke="#2ea44f" stroke-width="1.6" marker-end="url(#ah-green)"/>
+
+  <!-- Build → Ingest: rsync tarball -->
+  <line x1="225" y1="200" x2="253" y2="200" stroke="#0075ca" stroke-width="2" marker-end="url(#ah-blue)"/>
+  <text x="239" y="193" text-anchor="middle" fill="#0075ca" font-size="9.5">rsync</text>
+  <text x="239" y="214" text-anchor="middle" fill="#0075ca" font-size="9">(SSH)</text>
+
+  <!-- ══ Row 1 right: Legend ═══════════════════════════════════════════════ -->
+  <rect x="560" y="142" width="250" height="126" rx="6" fill="#f6f8fa" stroke="#e1e4e8" stroke-width="1"/>
+  <text x="685" y="162" text-anchor="middle" fill="#24292e" font-size="11" font-weight="600">Legend</text>
+  <line x1="572" y1="178" x2="606" y2="178" stroke="#2ea44f" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#ah-green)"/>
+  <text x="613" y="182" fill="#24292e" font-size="10">workflow dispatch</text>
+  <line x1="572" y1="196" x2="606" y2="196" stroke="#0075ca" stroke-width="2" marker-end="url(#ah-blue)"/>
+  <text x="613" y="200" fill="#24292e" font-size="10">rsync (SSH)</text>
+  <line x1="572" y1="214" x2="606" y2="214" stroke="#e36209" stroke-width="2" marker-end="url(#ah-orange)"/>
+  <text x="613" y="218" fill="#24292e" font-size="10">mountless ingest</text>
+  <line x1="572" y1="232" x2="606" y2="232" stroke="#8b949e" stroke-width="2" marker-end="url(#ah-muted)"/>
+  <text x="613" y="236" fill="#24292e" font-size="10">replication / FUSE</text>
+  <rect x="572" y="244" width="80" height="14" rx="7" fill="#32341a"/>
+  <text x="612" y="255" text-anchor="middle" fill="#e3e08a" font-size="9">🛠 bits-admin</text>
+  <text x="658" y="255" fill="#24292e" font-size="10"> on each host</text>
+
+  <!-- ══ Row 2: CVMFS infrastructure ══════════════════════════════════════ -->
+
+  <!-- CVMFS Gateway + S3 backend -->
+  <rect x="10" y="332" width="230" height="96" rx="8" fill="#3b1f6e" filter="url(#shadow)"/>
+  <text x="125" y="354" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">🗄 CVMFS Gateway</text>
+  <text x="125" y="371" text-anchor="middle" fill="#d2b4fe" font-size="10.5">cvmfs_gateway API (port 4929)</text>
+  <text x="125" y="386" text-anchor="middle" fill="#d2b4fe" font-size="10.5">S3 / object store backend</text>
+  <text x="125" y="401" text-anchor="middle" fill="#d2b4fe" font-size="10.5">catalog &amp; data objects</text>
+  <text x="125" y="416" text-anchor="middle" fill="#d2b4fe" font-size="10">Stratum-0 (authoritative)</text>
+
+  <!-- Ingest → CVMFS Gateway: mountless ingest -->
+  <path d="M 362,268 Q 362,310 235,330" fill="none" stroke="#e36209" stroke-width="2" marker-end="url(#ah-orange)"/>
+  <text x="340" y="300" text-anchor="middle" fill="#e36209" font-size="10">cvmfs_server ingest</text>
+  <text x="340" y="312" text-anchor="middle" fill="#e36209" font-size="10">(mountless)</text>
+
+  <!-- Stratum-1 replicas -->
+  <rect x="268" y="332" width="220" height="96" rx="8" fill="#1e3a5a" filter="url(#shadow)"/>
+  <text x="378" y="354" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">🔁 Stratum-1</text>
+  <text x="378" y="371" text-anchor="middle" fill="#93c5fd" font-size="10.5">replica servers</text>
+  <text x="378" y="386" text-anchor="middle" fill="#93c5fd" font-size="10.5">geographically distributed</text>
+  <text x="378" y="401" text-anchor="middle" fill="#93c5fd" font-size="10.5">read-only mirrors</text>
+
+  <!-- Gateway → Stratum-1: replication -->
+  <line x1="240" y1="376" x2="266" y2="376" stroke="#8b949e" stroke-width="1.8" marker-end="url(#ah-muted)"/>
+  <text x="253" y="369" text-anchor="middle" fill="#8b949e" font-size="9.5">replicate</text>
+
+  <!-- Clients -->
+  <rect x="520" y="332" width="190" height="96" rx="8" fill="#24292e" filter="url(#shadow)"/>
+  <text x="615" y="354" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">💻 Clients</text>
+  <text x="615" y="371" text-anchor="middle" fill="#8b949e" font-size="10.5">CVMFS client nodes</text>
+  <text x="615" y="386" text-anchor="middle" fill="#8b949e" font-size="10.5">mount /cvmfs/…</text>
+  <text x="615" y="401" text-anchor="middle" fill="#8b949e" font-size="10.5">software on demand</text>
+
+  <!-- Stratum-1 → Clients -->
+  <line x1="488" y1="380" x2="518" y2="380" stroke="#8b949e" stroke-width="1.8" marker-end="url(#ah-muted)"/>
+  <text x="503" y="373" text-anchor="middle" fill="#8b949e" font-size="9.5">FUSE</text>
+</svg>
+        </div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--c-border);margin:0 0 24px;">
 
       <div id="help-readme-toolbar">
         <div class="page-title" style="margin:0;flex:1;">Help &amp; Setup Guide</div>
@@ -2050,6 +2315,32 @@ async function loadHelp() {
     window.marked.setOptions({ gfm: true, breaks: false });
     content.innerHTML = `<div class="md-body">${window.marked.parse(md)}</div>`;
     State._helpLoaded = true;
+
+    // Inject configuration overview diagram before the "bits Console" h1
+    const allHeadings = content.querySelectorAll('h1, h2, h3');
+    for (const h of allHeadings) {
+      if (/bits.{0,4}console/i.test(h.textContent)) {
+        const cfgDiag = el('config-diagram');
+        if (cfgDiag) {
+          cfgDiag.style.display = '';
+          h.insertAdjacentElement('beforebegin', cfgDiag);
+        }
+        break;
+      }
+    }
+
+    // Inject architecture diagram after the "Runner setup" heading
+    const headings = content.querySelectorAll('h2, h3');
+    for (const h of headings) {
+      if (/runner.{0,6}setup/i.test(h.textContent)) {
+        const diag = el('arch-diagram');
+        if (diag) {
+          diag.style.display = '';
+          h.insertAdjacentElement('afterend', diag);
+        }
+        break;
+      }
+    }
   } catch (e) {
     content.innerHTML =
       `<div style="font-size:13px;">
