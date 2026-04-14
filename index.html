@@ -105,7 +105,7 @@ body {
 #sidebar-footer { margin-top: auto; padding: 12px 16px; font-size: 11px; color: #586069; }
 
 /* ── Main content ─────────────────────────────────────────────────────────── */
-#main { flex: 1; overflow-y: auto; padding: 24px; }
+#main { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 24px; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 .page-title { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
@@ -360,10 +360,10 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
   padding-right: calc(16px + env(safe-area-inset-right));
 }
 #sidebar {
-  padding-left:  env(safe-area-inset-left);
+  padding-left: env(safe-area-inset-left);
 }
 #main {
-  padding-left:  calc(24px + env(safe-area-inset-right, 0px));
+  padding-right: calc(24px + env(safe-area-inset-right, 0px));
 }
 
 /* ── Responsive sidebar ─────────────────────────────────────────────────── */
@@ -376,7 +376,7 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
   body { font-size: 13px; }
   .page-title { font-size: 17px; }
   table { font-size: 12px; }
-  #main { padding: 16px 16px 16px calc(16px + env(safe-area-inset-right, 0px)); }
+  #main { padding: 16px calc(16px + env(safe-area-inset-right, 0px)) 16px 16px; }
 }
 
 /* < 600 px landscape  →  icon-only sidebar (44 px)                          */
@@ -392,34 +392,25 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
   #nav-builds { position: relative; }
 }
 
-/* ── Mobile right-side navigation bar ──────────────────────────────────── */
-#mobile-nav {
+/* ── Mobile home button (top-right corner) ──────────────────────────────── */
+#mobile-home {
   display: none;
   position: fixed;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: calc(var(--hdr-h) + 6px);
+  right: calc(6px + env(safe-area-inset-right, 0px));
   z-index: 500;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 3px;
+  width: 32px; height: 32px;
   background: var(--c-sidebar);
-  border-radius: 10px 0 0 10px;
   border: 1px solid var(--c-border);
-  border-right: none;
-  padding-right: env(safe-area-inset-right, 0px);
-}
-#mobile-nav button {
-  width: 34px; height: 34px;
-  background: none; border: none;
+  border-radius: 50%;
   color: #c9d1d9; font-size: 18px;
-  cursor: pointer; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  align-items: center; justify-content: center;
   line-height: 1;
 }
-#mobile-nav button:active { background: var(--c-accent); color: #fff; }
+#mobile-home:active { background: var(--c-accent); color: #fff; }
 @media (max-width: 899px) and (orientation: landscape) {
-  #mobile-nav { display: flex; }
+  #mobile-home { display: flex; }
 }
 
 /* ── Portrait-mode overlay ──────────────────────────────────────────────── */
@@ -450,12 +441,8 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
 </head>
 <body>
 
-<!-- ── Mobile right-side navigation bar ─────────────────────────────────── -->
-<div id="mobile-nav">
-  <button onclick="history.back()"    title="Back">&#8249;</button>
-  <button onclick="history.forward()" title="Forward">&#8250;</button>
-  <button onclick="location.reload()" title="Home">&#9711;</button>
-</div>
+<!-- ── Mobile home button ────────────────────────────────────────────────── -->
+<button id="mobile-home" onclick="location.reload()" title="Home">&#9711;</button>
 
 <!-- ── Portrait-mode rotate prompt ──────────────────────────────────────── -->
 <div id="portrait-overlay">
