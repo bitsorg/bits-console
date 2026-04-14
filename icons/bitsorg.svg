@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 430" width="400" height="430">
+  <defs>
+    <!-- Top face: bright blue, lit from above -->
+    <linearGradient id="gTop" x1="200" y1="14" x2="267" y2="92" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7b95df"/>
+      <stop offset="100%" stop-color="#4d69bf"/>
+    </linearGradient>
+    <!-- Upper-left face -->
+    <linearGradient id="gUL" x1="65" y1="92" x2="200" y2="14" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#536bbf"/>
+      <stop offset="100%" stop-color="#6b85d0"/>
+    </linearGradient>
+    <!-- Upper-right face: slightly darker -->
+    <linearGradient id="gUR" x1="335" y1="92" x2="256" y2="133" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#465da9"/>
+      <stop offset="100%" stop-color="#3d5496"/>
+    </linearGradient>
+    <!-- Left wall face -->
+    <linearGradient id="gL" x1="65" y1="170" x2="144" y2="170" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3d5496"/>
+      <stop offset="100%" stop-color="#4d69bf"/>
+    </linearGradient>
+    <!-- Right wall face: dark -->
+    <linearGradient id="gR" x1="335" y1="170" x2="256" y2="170" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2f3d65"/>
+      <stop offset="100%" stop-color="#3a4e80"/>
+    </linearGradient>
+    <!-- Bottom face: orange/gold -->
+    <linearGradient id="gBot" x1="200" y1="229" x2="200" y2="326" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#d99040"/>
+      <stop offset="50%" stop-color="#cb893a"/>
+      <stop offset="100%" stop-color="#a06d2c"/>
+    </linearGradient>
+    <!-- Lower-left face: darker orange side -->
+    <linearGradient id="gBL" x1="65" y1="248" x2="144" y2="198" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#9a6828"/>
+      <stop offset="100%" stop-color="#b87c32"/>
+    </linearGradient>
+    <!-- Lower-right face: darker orange side -->
+    <linearGradient id="gBR" x1="335" y1="248" x2="256" y2="198" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8a5e24"/>
+      <stop offset="100%" stop-color="#a06d2c"/>
+    </linearGradient>
+    <!-- Inner hole edge shadow -->
+    <radialGradient id="gHole" cx="200" cy="165" r="70" gradientUnits="userSpaceOnUse">
+      <stop offset="70%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e8e8e8"/>
+    </radialGradient>
+  </defs>
+
+  <!-- White background -->
+  <rect width="400" height="430" fill="white"/>
+
+  <!-- === HEX NUT FACES ===
+       Outer hex vertices (pointy-top):
+         O1(200,14)  O2(335,92)  O3(335,248)
+         O4(200,326) O5(65,248)  O6(65,92)
+       Inner hex vertices:
+         I1(200,100) I2(256,133) I3(256,198)
+         I4(200,229) I5(144,198) I6(144,133)
+  -->
+
+  <!-- Face 1 – Top:       O1-O2-I2-I1  (bright blue, top-lit) -->
+  <polygon points="200,14 335,92 256,133 200,100" fill="url(#gTop)"/>
+
+  <!-- Face 2 – Upper-left: O6-O1-I1-I6 -->
+  <polygon points="65,92 200,14 200,100 144,133" fill="url(#gUL)"/>
+
+  <!-- Face 3 – Upper-right: O2-O3-I3-I2 -->
+  <polygon points="335,92 335,248 256,198 256,133" fill="url(#gUR)"/>
+
+  <!-- Face 4 – Left wall: O5-O6-I6-I5 -->
+  <polygon points="65,248 65,92 144,133 144,198" fill="url(#gL)"/>
+
+  <!-- Face 5 – Right wall: O3-O4-I4-I3 -->
+  <polygon points="335,248 200,326 200,229 256,198" fill="url(#gR)"/>
+
+  <!-- Face 6 – Bottom:     O4-O5-I5-I4  (orange base) -->
+  <polygon points="200,326 65,248 144,198 200,229" fill="url(#gBot)"/>
+
+  <!-- Split bottom into two for side shading -->
+  <!-- Lower-left face: O5-O4 area left side -->
+  <!-- Lower-right face: O3-O4 area right side – already done by face 5 above -->
+
+  <!-- Inner hex hole – white -->
+  <polygon points="200,100 256,133 256,198 200,229 144,198 144,133" fill="url(#gHole)"/>
+
+  <!-- Subtle inner edge shadow ring (thin stroke) -->
+  <polygon points="200,100 256,133 256,198 200,229 144,198 144,133"
+           fill="none" stroke="#c0c8d8" stroke-width="1.5"/>
+
+  <!-- Outer hex subtle outline for crispness -->
+  <polygon points="200,14 335,92 335,248 200,326 65,248 65,92"
+           fill="none" stroke="#1a2540" stroke-width="1.5"/>
+
+  <!-- === "bits >" TEXT === -->
+  <text x="200" y="390"
+        font-family="'Courier New', 'Lucida Console', monospace"
+        font-weight="bold"
+        font-size="52"
+        fill="#4d72d4"
+        text-anchor="middle"
+        letter-spacing="2">bits &gt;</text>
+</svg>
