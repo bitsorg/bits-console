@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>bits Console</title>
+<title>My Bits</title>
 
 <!-- ── PWA / home-screen icon ───────────────────────────────────────────── -->
 <!-- Favicon (browser tab) -->
@@ -197,9 +197,18 @@ tr:hover td { background: #f6f8fa; }
   display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap;
 }
 .search-bar input {
-  flex: 1; min-width: 200px; padding: 6px 10px;
+  flex: 1; min-width: 200px; padding: 6px 28px 6px 10px;
   border: 1px solid var(--c-border); border-radius: var(--radius); font-size: 13px;
 }
+.search-wrap { position: relative; flex: 1; min-width: 200px; display: flex; }
+.search-wrap input { flex: 1; min-width: 0; }
+.search-clear {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; color: var(--c-muted);
+  font-size: 15px; line-height: 1; padding: 2px 4px; border-radius: 4px;
+  display: none;
+}
+.search-clear:hover { color: var(--c-text); background: var(--c-border); }
 .search-bar select {
   padding: 6px 10px; border: 1px solid var(--c-border);
   border-radius: var(--radius); font-size: 13px; background: #fff;
@@ -363,7 +372,11 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
   :root { --sidebar-w: 160px; }
   .nav-section { display: none; }
   #sidebar-footer { display: none; }
-  .nav-item { font-size: 12px; padding: 7px 10px; gap: 7px; }
+  .nav-item { font-size: 15px; padding: 9px 10px; gap: 8px; }
+  body { font-size: 13px; }
+  .page-title { font-size: 17px; }
+  table { font-size: 12px; }
+  #main { padding: 16px 16px 16px calc(16px + env(safe-area-inset-right, 0px)); }
 }
 
 /* < 600 px landscape  →  icon-only sidebar (44 px)                          */
@@ -377,6 +390,36 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
   /* Running-builds badge: reposition above the icon */
   #running-badge { position: absolute; top: 4px; right: 4px; font-size: 9px; padding: 0 4px; }
   #nav-builds { position: relative; }
+}
+
+/* ── Mobile right-side navigation bar ──────────────────────────────────── */
+#mobile-nav {
+  display: none;
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 500;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 3px;
+  background: var(--c-sidebar);
+  border-radius: 10px 0 0 10px;
+  border: 1px solid var(--c-border);
+  border-right: none;
+  padding-right: env(safe-area-inset-right, 0px);
+}
+#mobile-nav button {
+  width: 34px; height: 34px;
+  background: none; border: none;
+  color: #c9d1d9; font-size: 18px;
+  cursor: pointer; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+#mobile-nav button:active { background: var(--c-accent); color: #fff; }
+@media (max-width: 899px) and (orientation: landscape) {
+  #mobile-nav { display: flex; }
 }
 
 /* ── Portrait-mode overlay ──────────────────────────────────────────────── */
@@ -406,6 +449,13 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
 </style>
 </head>
 <body>
+
+<!-- ── Mobile right-side navigation bar ─────────────────────────────────── -->
+<div id="mobile-nav">
+  <button onclick="history.back()"    title="Back">&#8249;</button>
+  <button onclick="history.forward()" title="Forward">&#8250;</button>
+  <button onclick="location.reload()" title="Home">&#9711;</button>
+</div>
 
 <!-- ── Portrait-mode rotate prompt ──────────────────────────────────────── -->
 <div id="portrait-overlay">
@@ -525,7 +575,12 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
       </div>
 
       <div class="search-bar">
-        <input type="text" id="pkg-search" placeholder="Search packages…" oninput="filterPackages()">
+        <div class="search-wrap">
+          <input type="text" id="pkg-search" placeholder="Search packages…"
+                 oninput="filterPackages(); toggleSearchClear('pkg-search','pkg-search-clear')">
+          <button id="pkg-search-clear" class="search-clear" title="Clear"
+                  onclick="clearSearch('pkg-search','pkg-search-clear',filterPackages)">&#x2715;</button>
+        </div>
         <select id="pkg-filter-cvmfs" onchange="filterPackages()">
           <option value="">All CVMFS statuses</option>
           <option value="published">Published</option>
@@ -3917,6 +3972,15 @@ function scheduleFromDetail() {
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id); }
+function toggleSearchClear(inputId, btnId) {
+  const v = (el(inputId)?.value || '').length > 0;
+  if (el(btnId)) el(btnId).style.display = v ? 'block' : 'none';
+}
+function clearSearch(inputId, btnId, callback) {
+  if (el(inputId)) el(inputId).value = '';
+  if (el(btnId))   el(btnId).style.display = 'none';
+  if (callback)    callback();
+}
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function showModal(id)  { el(id).classList.remove('hidden'); }
 function hideModal(id)  { el(id).classList.add('hidden'); }
