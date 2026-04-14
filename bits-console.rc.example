@@ -1,0 +1,30 @@
+# bits-console.rc — runner configuration for the bits Console.
+#
+# This file is generated automatically by the bits Console from ui-config.yaml
+# and passed base64-encoded as the `bits_rc` workflow input.  On the runner it
+# is decoded to ~/.bits-console.rc and sourced before each build step.
+#
+# ⚠ DO NOT COMMIT bits-console.rc — it is listed in .gitignore.
+# Copy this file to bits-console.rc and fill in your values for local testing.
+# The actual bits-console.rc file stays local and untracked.
+#
+# In normal operation you do not need to maintain this file manually — the
+# console derives all values from ui-config.yaml and encodes them on the fly.
+
+# ── CVMFS target ──────────────────────────────────────────────────────────────
+BITS_CVMFS_REPO=sft.cern.ch
+BITS_CVMFS_PREFIX=/cvmfs/sft.cern.ch/lcg/releases
+
+# ── Spool / ingestion host ─────────────────────────────────────────────────────
+BITS_SPOOL_HOST=ingestion.example.org
+BITS_SPOOL_USER=bits
+BITS_SPOOL_PATH=/var/spool/bits
+
+# ── SSH key (path on the runner; omit to fall back to the SPOOL_SSH_KEY secret)
+# BITS_SSH_KEY_FILE=/etc/bits/spool_key
+
+# ── Recipe config repository (owner/repo) ─────────────────────────────────────
+# BITS_CONFIG_REPO=bitsorg/lcg.bits
+
+# ── Private PyPI index (optional; used by the update-bits.yml workflow) ────────
+# BITS_PYPI_INDEX=https://my-pypi.example.org/simple

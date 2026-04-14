@@ -58,9 +58,9 @@ recipe_repos: []
 publish_workflow: cvmfs-publish.yml
 
 # ── Runner configuration ──────────────────────────────────────────────────────
-# bits-console constructs a bits.rc file from the fields below and passes it
+# bits-console constructs a bits-console.rc file from the fields below and passes it
 # to every workflow dispatch as a base64-encoded input.  The runner writes it
-# to ~/.bits.rc before executing any build step, making runners fully agnostic
+# to ~/.bits-console.rc before executing any build step, making runners fully agnostic
 # of which experiment or repository triggered the job.
 #
 # Two deployment modes are supported:
@@ -72,7 +72,7 @@ publish_workflow: cvmfs-publish.yml
 #   Legacy mode (single-repo runners)
 #     Leave ssh_key_file blank and configure SPOOL_SSH_KEY, SPOOL_USER,
 #     SPOOL_HOST, SPOOL_PATH, CVMFS_REPO as repository secrets.  The workflow
-#     falls back to secrets when bits.rc does not supply these values.
+#     falls back to secrets when bits-console.rc does not supply these values.
 #
 # All values here are non-secret (hostnames, paths, labels).  Never put
 # private keys or passwords in this file.

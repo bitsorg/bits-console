@@ -13,15 +13,15 @@
 #   publish  — runs on the CVMFS stratum-0 runner, calls cvmfs-publish.sh
 #              to open a catalog-only transaction using the pre-staged grafts.
 #
-# Configuration delivery — bits.rc
-# ─────────────────────────────────
+# Configuration delivery — bits-console.rc
+# ─────────────────────────────────────────
 # All experiment-specific, non-secret configuration is delivered via the
 # `bits_rc` input (a base64-encoded shell key=value file).  The build job
-# writes it to ~/.bits.rc before invoking bits.  This makes runners
+# writes it to ~/.bits-console.rc before invoking bits.  This makes runners
 # completely repository/experiment agnostic: the same runner pool can serve
-# multiple experiments, each dispatching its own bits.rc.
+# multiple experiments, each dispatching its own bits-console.rc.
 #
-# A bits.rc typically contains:
+# A bits-console.rc typically contains:
 #   BITS_CVMFS_REPO=sft.cern.ch
 #   BITS_CVMFS_PREFIX=/cvmfs/sft.cern.ch/lcg/releases
 #   BITS_SPOOL_HOST=ingestion.example.org
@@ -48,9 +48,9 @@
 #
 # Required runner-local credentials (stored on the runner, not in GitHub):
 #   BITS_SSH_KEY_FILE  path to SSH private key for rsync to the spool host
-#                      (set in runner's environment or supplied via bits.rc)
+#                      (set in runner's environment or supplied via bits-console.rc)
 #
-# Optional GitHub repository secrets (used as fallback when bits.rc omits them):
+# Optional GitHub repository secrets (used as fallback when bits-console.rc omits them):
 #   SPOOL_SSH_KEY   SSH private key content (used if BITS_SSH_KEY_FILE is unset)
 #   SPOOL_USER      SSH user on the ingestion host
 #   SPOOL_HOST      Hostname or IP of the ingestion host
@@ -88,7 +88,7 @@ on:
         type: string
       bits_rc:
         description: >
-          Base64-encoded bits.rc configuration file.  Generated automatically
+          Base64-encoded bits-console.rc configuration file.  Generated automatically
           by the bits Console from ui-config.yaml.  When present, overrides the
           individual SPOOL_* and CVMFS_* secrets for this run.
         required: false
@@ -124,7 +124,7 @@ on:
       config_dir:
         description: >
           Recipe config repository (owner/repo).  Overrides BITS_CONFIG_REPO
-          from bits.rc.  Leave blank to use the value from bits.rc or the
+          from bits-console.rc.  Leave blank to use the value from bits-console.rc or the
           BITS_CONFIG_REPO repository variable.
         required: false
         type: string
@@ -160,27 +160,27 @@ jobs:
       spool_path: ${{ steps.bits-rc.outputs.spool_path }}
 
     steps:
-      # ── Decode and apply bits.rc ─────────────────────────────────────────
-      - name: Decode bits.rc
+      # ── Decode and apply bits-console.rc ────────────────────────────────────
+      - name: Decode bits-console.rc
         id: bits-rc
         shell: bash
         run: |
-          # Write bits.rc when the input is provided, then source it so
+          # Write bits-console.rc when the input is provided, then source it so
           # subsequent steps see the exported variables.
           if [[ -n "${{ inputs.bits_rc }}" ]]; then
-            echo "${{ inputs.bits_rc }}" | base64 -d > ~/.bits.rc
-            chmod 600 ~/.bits.rc
-            echo "bits.rc written from workflow input"
-          elif [[ -f /etc/bits/bits.rc ]]; then
-            cp /etc/bits/bits.rc ~/.bits.rc
-            chmod 600 ~/.bits.rc
-            echo "bits.rc copied from /etc/bits/bits.rc"
+            echo "${{ inputs.bits_rc }}" | base64 -d > ~/.bits-console.rc
+            chmod 600 ~/.bits-console.rc
+            echo "bits-console.rc written from workflow input"
+          elif [[ -f /etc/bits/bits-console.rc ]]; then
+            cp /etc/bits/bits-console.rc ~/.bits-console.rc
+            chmod 600 ~/.bits-console.rc
+            echo "bits-console.rc copied from /etc/bits/bits-console.rc"
           fi
 
           # Source the file (if present) so variables are available to this step.
-          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+          [[ -f ~/.bits-console.rc ]] && set -a && source ~/.bits-console.rc && set +a
 
-          # Resolve spool connection — bits.rc > GitHub secrets.
+          # Resolve spool connection — bits-console.rc > GitHub secrets.
           SPOOL_HOST="${BITS_SPOOL_HOST:-${{ secrets.SPOOL_HOST }}}"
           SPOOL_USER="${BITS_SPOOL_USER:-${{ secrets.SPOOL_USER }}}"
           SPOOL_PATH="${BITS_SPOOL_PATH:-${{ secrets.SPOOL_PATH }}}"
@@ -195,20 +195,20 @@ jobs:
       - name: Set up SSH key for spool rsync
         shell: bash
         run: |
-          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+          [[ -f ~/.bits-console.rc ]] && set -a && source ~/.bits-console.rc && set +a
 
           install -d -m 700 ~/.ssh
           SPOOL_HOST="${BITS_SPOOL_HOST:-${{ secrets.SPOOL_HOST }}}"
 
           # Key selection priority:
-          #   1. BITS_SSH_KEY_FILE from bits.rc (runner-local key file)
+          #   1. BITS_SSH_KEY_FILE from bits-console.rc (runner-local key file)
           #   2. SPOOL_SSH_KEY GitHub secret (legacy / per-repo)
           if [[ -n "${BITS_SSH_KEY_FILE}" && -f "${BITS_SSH_KEY_FILE}" ]]; then
             cp "${BITS_SSH_KEY_FILE}" ~/.ssh/spool_key
           elif [[ -n "${{ secrets.SPOOL_SSH_KEY }}" ]]; then
             echo "${{ secrets.SPOOL_SSH_KEY }}" > ~/.ssh/spool_key
           else
-            echo "::error::No SSH key available. Set BITS_SSH_KEY_FILE in bits.rc or configure the SPOOL_SSH_KEY secret."
+            echo "::error::No SSH key available. Set BITS_SSH_KEY_FILE in bits-console.rc or configure the SPOOL_SSH_KEY secret."
             exit 1
           fi
           chmod 600 ~/.ssh/spool_key
@@ -218,7 +218,7 @@ jobs:
       - name: Checkout recipe config directory
         uses: actions/checkout@v4
         with:
-          # Priority: explicit input > bits.rc BITS_CONFIG_REPO > repository variable.
+          # Priority: explicit input > bits-console.rc BITS_CONFIG_REPO > repository variable.
           repository: >-
             ${{ inputs.config_dir
                 || (inputs.bits_rc != '' && '')
@@ -230,7 +230,7 @@ jobs:
       - name: Build package
         shell: bash
         run: |
-          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+          [[ -f ~/.bits-console.rc ]] && set -a && source ~/.bits-console.rc && set +a
 
           # Override BITS_CONFIG_REPO if caller supplied config_dir explicitly.
           [[ -n "${{ inputs.config_dir }}" ]] && BITS_CONFIG_REPO="${{ inputs.config_dir }}"
@@ -255,7 +255,7 @@ jobs:
         id: publish
         shell: bash
         run: |
-          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+          [[ -f ~/.bits-console.rc ]] && set -a && source ~/.bits-console.rc && set +a
 
           SPOOL_USER="${BITS_SPOOL_USER:-${{ secrets.SPOOL_USER }}}"
           SPOOL_HOST="${BITS_SPOOL_HOST:-${{ secrets.SPOOL_HOST }}}"
@@ -295,12 +295,12 @@ jobs:
       - name: Run cvmfs-ingest (--once mode)
         shell: bash
         run: |
-          # Decode bits.rc if provided (so BITS_SPOOL_PATH etc. are available).
+          # Decode bits-console.rc if provided (so BITS_SPOOL_PATH etc. are available).
           if [[ -n "${{ inputs.bits_rc }}" ]]; then
-            echo "${{ inputs.bits_rc }}" | base64 -d > ~/.bits.rc
-            chmod 600 ~/.bits.rc
+            echo "${{ inputs.bits_rc }}" | base64 -d > ~/.bits-console.rc
+            chmod 600 ~/.bits-console.rc
           fi
-          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+          [[ -f ~/.bits-console.rc ]] && set -a && source ~/.bits-console.rc && set +a
 
           SPOOL_PATH="${BITS_SPOOL_PATH:-${{ secrets.SPOOL_PATH }}}"
 
@@ -348,10 +348,10 @@ jobs:
         shell: bash
         run: |
           if [[ -n "${{ inputs.bits_rc }}" ]]; then
-            echo "${{ inputs.bits_rc }}" | base64 -d > ~/.bits.rc
-            chmod 600 ~/.bits.rc
+            echo "${{ inputs.bits_rc }}" | base64 -d > ~/.bits-console.rc
+            chmod 600 ~/.bits-console.rc
           fi
-          [[ -f ~/.bits.rc ]] && set -a && source ~/.bits.rc && set +a
+          [[ -f ~/.bits-console.rc ]] && set -a && source ~/.bits-console.rc && set +a
 
           CVMFS_REPO="${BITS_CVMFS_REPO:-${{ secrets.CVMFS_REPO }}}"
 

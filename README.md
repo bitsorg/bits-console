@@ -123,7 +123,7 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALLROOT" ...
 
 ## Runner setup
 
-The publishing pipeline uses three runner types, each registered in
+The publishing pipeline uses four runner types, each registered in
 **Settings → Actions → Runners** in the bits-console repository.
 
 ### 1 · Build runner — `bits-build-<platform>`
@@ -157,6 +157,24 @@ cd /opt/actions-runner
 - Must have `cvmfs_server` CLI available
 - Runner labels: `self-hosted`, `bits-cvmfs-publisher`
 
+### 4 · Admin runner — `bits-admin`
+
+A lightweight runner for administrative tasks that do not require build or
+CVMFS infrastructure (e.g. updating the `bits` CLI on other runners).
+
+- Any Linux host with `pip` / `pip3` / `pipx` and network access
+- Runner labels: `self-hosted`, `bits-admin`
+
+```bash
+# Register on the admin host:
+cd /opt/actions-runner
+./config.sh --url https://github.com/<org>/bits-console \
+            --token <RUNNER_TOKEN> \
+            --labels "self-hosted,bits-admin" \
+            --unattended
+./svc.sh install && ./svc.sh start
+```
+
 Use the `runner_group` field in `ui-config.yaml` to add an additional label that
 routes jobs to experiment-specific runners in a shared pool.
 
@@ -183,6 +201,35 @@ Optional repository **variables** (Settings → Secrets → Variables):
 | `CVMFS_BACKEND_TYPE` | `local` (default) or `s3` |
 | `CVMFS_BACKEND_PATH` | Path or bucket URL for the object store |
 | `INGEST_CONCURRENCY` | Worker threads for cvmfs-ingest (0 = auto) |
+
+---
+
+## Updating bits on runners
+
+The `bits` CLI running on self-hosted runners can be updated directly from the
+console without logging into each machine.
+
+1. Go to **Settings → Runner administration** in the console.
+2. Select the target runner from the dropdown
+   (`bits-build-<platform>`, `bits-ingest`, `bits-cvmfs-publisher`, or `bits-admin`).
+3. Optionally enter a **Runner group** if your runners use experiment-specific labels.
+4. Optionally pin a **bits version** (e.g. `1.2.3`).  Leave blank to install the
+   latest published release.
+5. Click **Update bits**.
+
+The console dispatches the `update-bits.yml` workflow.  The selected runner
+installs (or upgrades) `bits` via `pip` / `pip3` / `pipx` and reports the
+before/after version in the workflow log.  A link to the Actions tab is shown
+in the console after dispatch.
+
+> **Tip:** To update multiple runner types, click **Update bits** once per
+> runner label.  Dispatch once per label; the workflow runs on whichever host
+> carries that label.
+
+### Private PyPI index
+
+If `BITS_PYPI_INDEX` is set in the `bits-console.rc` block of `ui-config.yaml`, the
+update workflow reads it and passes `--index-url` to pip automatically.
 
 ---
 
@@ -215,6 +262,8 @@ Optional repository **variables** (Settings → Secrets → Variables):
 | Wrong packages from a provider | The `homepage` field in `bitsorg/bits-providers/registry.json` controls which GitHub repo is fetched; verify the resolved path matches the intended repo |
 | Authentication error | Regenerate the PAT with `repo` and `workflow` scopes; use **Connect** in the header to update it |
 | Build stuck / no runner | Verify the self-hosted runner is online and the label exactly matches the platform, e.g. `bits-build-x86_64-el9` |
+| "Update bits" dispatch fails | Ensure `update-bits.yml` exists in `.github/workflows/` and the PAT has the `workflow` scope |
+| bits version unchanged after update | Check the workflow log — pip may have silently used a cached wheel; try pinning a specific version |
 | Pages deploy counted as build | Ensure you are running the latest version of bits-console |
 | Packages from wrong provider | Check **Settings → Providers → Search order** — the top-most provider wins when the same package appears in multiple providers |
 
@@ -224,4 +273,4 @@ Optional repository **variables** (Settings → Secrets → Variables):
 
 See [REFERENCE.md](REFERENCE.md) for a quick-reference card covering all
 `ui-config.yaml` fields, runner label conventions, secrets, and the
-`bits.rc` / `cvmfs-bits.rc` config files passed to runners.
+`bits-console.rc` config files passed to runners.
