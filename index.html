@@ -46,11 +46,13 @@
 html, body { height: 100%; }
 body {
   font-family: var(--font);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--c-text);
   background: var(--c-bg);
   display: flex;
   flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
@@ -377,37 +379,40 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
   :root { --sidebar-w: 160px; }
   .nav-section { display: none; }
   #sidebar-footer { display: none; }
-  .nav-item { font-size: 15px; padding: 9px 10px; gap: 8px; }
+  .nav-item { font-size: 13px; padding: 8px 10px; gap: 7px; }
   body { font-size: 13px; }
-  .page-title { font-size: 17px; }
+  .page-title { font-size: 16px; }
   table { font-size: 12px; }
 }
 
-/* Mobile landscape: fix sidebar/main positioning absolutely so flexbox quirks
-   on Mobile Safari can never cause main to overlap the sidebar.              */
+/* Mobile landscape: both sidebar and main are position:fixed so they are
+   always viewport-relative and can never overlap each other.                 */
 @media (max-width: 899px) and (orientation: landscape) {
-  #layout {
-    position: relative;   /* anchor for absolutely-positioned #main */
-    display: block;       /* exit row-flex; use explicit positioning instead */
-    overflow: hidden;
-  }
+  #layout { display: block; overflow: visible; }
   #sidebar {
-    position: fixed;      /* always pinned to left edge, never covered        */
+    position: fixed;
     top: var(--hdr-h);
     left: 0;
     width: var(--sidebar-w);
-    height: calc(100% - var(--hdr-h));
+    height: calc(100vh - var(--hdr-h));
+    z-index: 100;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
   #main {
-    position: absolute;
-    top: 0;
-    left: var(--sidebar-w);   /* starts exactly at right edge of sidebar      */
+    position: fixed;
+    top: var(--hdr-h);
+    left: var(--sidebar-w);
     right: 0;
     bottom: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 16px calc(16px + env(safe-area-inset-right, 0px)) 16px 16px;
+    padding: 14px calc(14px + env(safe-area-inset-right, 0px)) 14px 14px;
+    z-index: 1;
   }
+  body { font-size: 12px; }
+  .page-title { font-size: 14px; }
+  table { font-size: 11px; }
 }
 
 /* < 600 px landscape  →  icon-only sidebar (44 px)                          */
@@ -2204,10 +2209,10 @@ function renderProviderOrder() {
 
 function applyConfig() {
   const c = State.config;
-  document.title = c.title || 'bits Console';
+  document.title = c.title || 'My Bits';
   const sub = c.subtitle || (State.owner + '/' + State.repo);
   el('hdr-subtitle').textContent = sub;
-  el('dash-sub').textContent = `${c.title || 'bits Console'} — ${sub}`;
+  el('dash-sub').textContent = `${c.title || 'My Bits'} — ${sub}`;
   el('repo-label').textContent = `${State.owner}/${State.repo}`;
   el('cvmfs-repo-label').textContent = `CVMFS repository: ${c.cvmfs_repo || '—'}`;
   // Populate platform filter in CVMFS tab
