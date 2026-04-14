@@ -1275,9 +1275,22 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
           <input type="text" id="bm-package" readonly>
         </div>
         <div class="form-row">
-          <label>Version <span style="font-weight:400;color:var(--c-muted);">(blank = latest)</span></label>
+          <label style="display:flex;align-items:center;gap:8px;">
+            Version
+            <span style="font-weight:400;font-size:12px;display:flex;gap:1px;border:1px solid var(--c-border);border-radius:4px;overflow:hidden;">
+              <label id="bm-src-ver-lbl" style="padding:1px 7px;cursor:pointer;background:var(--c-accent);color:#fff;">
+                <input type="radio" name="bm-ver-src" value="version" checked
+                       onchange="toggleVerSrc()" style="display:none;">manual
+              </label>
+              <label id="bm-src-tag-lbl" style="padding:1px 7px;cursor:pointer;">
+                <input type="radio" name="bm-ver-src" value="tag"
+                       onchange="toggleVerSrc()" style="display:none;">tag
+              </label>
+            </span>
+          </label>
           <input type="text" id="bm-version" placeholder="e.g. 20230802.1-1">
-          <div class="form-hint">Override the version from the recipe.</div>
+          <select id="bm-tag" style="display:none;"></select>
+          <div class="form-hint" id="bm-ver-hint">Override the version from the recipe. Blank = latest.</div>
         </div>
       </div>
 
@@ -2868,6 +2881,17 @@ function showBuildModal(pkg, version, opts = {}) {
   el('bm-error').style.display = 'none';
   el('bm-submit').disabled  = false;
   el('bm-submit').textContent = '🔨 Trigger Build';
+  // Reset version source to manual, clear cached tags
+  const verRadio = document.querySelector('input[name="bm-ver-src"][value="version"]');
+  if (verRadio) { verRadio.checked = true; }
+  el('bm-tag').innerHTML = '';
+  el('bm-version').style.display = '';
+  el('bm-tag').style.display     = 'none';
+  el('bm-ver-hint').textContent  = 'Override the version from the recipe. Blank = latest.';
+  el('bm-src-ver-lbl').style.background = 'var(--c-accent)';
+  el('bm-src-ver-lbl').style.color      = '#fff';
+  el('bm-src-tag-lbl').style.background = '';
+  el('bm-src-tag-lbl').style.color      = '';
   // Populate platforms
   const pSel = el('bm-platform');
   pSel.innerHTML = '';
@@ -2898,18 +2922,55 @@ function showBuildModal(pkg, version, opts = {}) {
   showModal('build-modal');
 }
 
+function bmVerSrcIsTag() {
+  return document.querySelector('input[name="bm-ver-src"]:checked')?.value === 'tag';
+}
+function bmGetVersion() {
+  return bmVerSrcIsTag() ? (el('bm-tag').value || '') : el('bm-version').value;
+}
+
+async function toggleVerSrc() {
+  const isTag = bmVerSrcIsTag();
+  el('bm-version').style.display = isTag ? 'none' : '';
+  el('bm-tag').style.display     = isTag ? '' : 'none';
+  el('bm-ver-hint').textContent  = isTag
+    ? 'Select a repository tag — passed as the version to the build workflow.'
+    : 'Override the version from the recipe. Blank = latest.';
+  // Highlight active toggle pill
+  el('bm-src-ver-lbl').style.background = isTag ? '' : 'var(--c-accent)';
+  el('bm-src-ver-lbl').style.color      = isTag ? '' : '#fff';
+  el('bm-src-tag-lbl').style.background = isTag ? 'var(--c-accent)' : '';
+  el('bm-src-tag-lbl').style.color      = isTag ? '#fff' : '';
+  if (isTag && el('bm-tag').options.length === 0) await loadBmTags();
+  updateCvmfsTarget();
+}
+
+async function loadBmTags() {
+  const sel = el('bm-tag');
+  sel.innerHTML = '<option value="">Loading tags…</option>';
+  try {
+    const tags = await ghGet(`/repos/${State.owner}/${State.repo}/tags?per_page=100`);
+    if (!tags.length) { sel.innerHTML = '<option value="">No tags found</option>'; return; }
+    sel.innerHTML = tags.map(t =>
+      `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join('');
+  } catch(e) {
+    sel.innerHTML = `<option value="">Error: ${esc(e.message)}</option>`;
+  }
+  updateCvmfsTarget();
+}
+
 function updateCvmfsTarget() {
   const c      = State.config || {};
   const prefix = c.cvmfs_prefix || '/cvmfs/sft.cern.ch/lcg/releases';
   const pkg    = el('bm-package').value;
-  const ver    = el('bm-version').value;
+  const ver    = bmGetVersion();
   const plat   = el('bm-platform').value;
   el('bm-cvmfs-target').value = `${prefix}/${pkg}/${ver}/${plat}`;
 }
 
 async function triggerBuild() {
   const pkg        = el('bm-package').value.trim();
-  const ver        = el('bm-version').value.trim();
+  const ver        = bmGetVersion().trim();
   const plat       = el('bm-platform').value;
   const target     = el('bm-cvmfs-target').value.trim();
   const rebuild    = el('bm-rebuild').checked;
@@ -3180,18 +3241,27 @@ function renderBuildsList(runs) {
         <span class="text-muted" style="font-size:12px;">${formatTime(r.run_started_at)}</span>
         ${dur ? `<span class="text-muted" style="font-size:12px;">${dur}</span>` : ''}
         <button class="btn btn-outline btn-sm" onclick="openLog(${r.id},'${esc(pkg)}')">Logs</button>
-        ${isRunning ? `<button class="btn btn-danger btn-sm" onclick="cancelRun(${r.id})">Cancel</button>` : ''}
+        ${isRunning ? `<button class="btn btn-danger btn-sm" onclick="cancelRun(${r.id})">⏹ Terminate</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="deleteRun(${r.id})" title="Delete run" style="color:var(--c-danger);border-color:var(--c-danger);">🗑</button>
       </div>
     </div>`;
   }).join('');
 }
 
 async function cancelRun(runId) {
-  if (!confirm('Cancel this workflow run?')) return;
+  if (!confirm('Terminate this workflow run?')) return;
   try {
     await ghPost(`/repos/${State.owner}/${State.repo}/actions/runs/${runId}/cancel`, {});
     setTimeout(loadBuilds, 1500);
-  } catch(e) { alert('Cancel failed: ' + e.message); }
+  } catch(e) { alert('Terminate failed: ' + e.message); }
+}
+
+async function deleteRun(runId) {
+  if (!confirm('Delete this workflow run? This cannot be undone.')) return;
+  try {
+    await ghDelete(`/repos/${State.owner}/${State.repo}/actions/runs/${runId}`);
+    setTimeout(loadBuilds, 800);
+  } catch(e) { alert('Delete failed: ' + e.message); }
 }
 
 function startBuildPoll() {
