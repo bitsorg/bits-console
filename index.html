@@ -425,6 +425,22 @@ hr { border: none; border-top: 1px solid var(--c-border); margin: 16px 0; }
       <div class="page-title">Browse Packages</div>
       <div class="page-sub">Select a package to build and publish to CVMFS.</div>
 
+      <!-- Repository Versions ─────────────────────────────────────────── -->
+      <div class="box" id="repo-versions-box" style="margin-bottom:16px;">
+        <div class="box-header" style="cursor:pointer;user-select:none;"
+             onclick="toggleRepoVersions()">
+          <span style="font-weight:600;font-size:13px;">📂 Repository versions</span>
+          <span id="repo-versions-summary"
+                style="font-size:12px;color:var(--c-muted);flex:1;margin-left:10px;"></span>
+          <span id="repo-versions-chevron" style="font-size:11px;color:var(--c-muted);">▶</span>
+        </div>
+        <div class="box-body" id="repo-versions-body" style="display:none;padding:12px 16px;">
+          <div id="repo-versions-list" style="font-size:13px;">
+            <span class="text-muted">No repositories selected.</span>
+          </div>
+        </div>
+      </div>
+
       <div class="search-bar">
         <input type="text" id="pkg-search" placeholder="Search packages…" oninput="filterPackages()">
         <select id="pkg-filter-cvmfs" onchange="filterPackages()">
@@ -1231,10 +1247,13 @@ const State = {
   pinnedPackages:  new Set(JSON.parse(
     (() => { try { return localStorage.getItem('bits_pinned_pkgs'); } catch { return null; } })()
     || '[]')),
-  // ── Tag picker state ────────────────────────────────────────────────────
-  _tagCache:       {},   // pkgName → [{name, sha}]  (fetched from source repo)
-  _expandedTags:   new Set(),  // pkgNames whose tag row is currently expanded
-  _selectedTag:    {},   // pkgName → chosen tag name (overrides recipe version)
+  // ── Provider (recipe-repo) version selection ─────────────────────────
+  // Key: "${owner}/${repo}", value: selected tag/branch string.
+  // Empty means use the provider's default branch (usually 'main').
+  providerVersions:  {},
+  _providerTagCache: {},  // same key → [{name}] fetched from GitHub
+  // ── Defaults section expand/collapse ────────────────────────────────
+  _showAllDefaults:  false,  // when false, only pinned defaults are shown
   // ── Defaults builder state ──────────────────────────────────────────────
   _selectedDefaults: [], // short names of defaults-* pkgs toggled in build modal
 };
@@ -1571,6 +1590,7 @@ function setProviderOverride(key, owner, repo) {
   storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
   State._packagesLoaded = false;
   renderProviders();
+  renderRepoVersions();
   loadPackages();
 }
 
@@ -1628,6 +1648,7 @@ function toggleProvider(ghOwner, ghRepo, branch, name, checked) {
   State.activeProviders = deduplicateProviders(State.activeProviders);
   storeItem('bits_active_providers', JSON.stringify(State.activeProviders));
   renderProviderSummary();
+  renderRepoVersions();
   // Invalidate cache and reload the package list immediately.
   State._packagesLoaded = false;
   loadPackages();
@@ -1884,7 +1905,7 @@ function nav(tab) {
   el('tab-' + tab).classList.add('active');
   el('nav-' + tab).classList.add('active');
   if (tab === 'dashboard') loadDashboard();
-  if (tab === 'packages')  { if (!State._packagesLoaded) loadPackages(); else filterPackages(); }
+  if (tab === 'packages')  { renderRepoVersions(); if (!State._packagesLoaded) loadPackages(); else filterPackages(); }
   if (tab === 'builds')    { loadBuilds(); startBuildPoll(); }
   if (tab === 'cvmfs')     loadCvmfsStatus();
   if (tab === 'schedules') loadSchedules();
@@ -1967,7 +1988,10 @@ async function getRecipeRepos() {
   for (const rr of repoList) {
     const owner  = rr.owner  || State.owner;
     const repo   = rr.repo;
-    let   branch = rr.branch || 'main';
+    // Prefer a user-selected version (tag/branch) from the repo-version panel;
+    // fall back to the provider's declared branch, then 'main'.
+    const rrKey  = `${owner}/${repo}`;
+    let   branch = State.providerVersions[rrKey] || rr.branch || 'main';
     const label  = rr.name   || `${owner}/${repo}`;
     if (!repo) continue;
     try {
@@ -2003,22 +2027,18 @@ async function getRecipeRepos() {
       }
     } catch(e) { console.warn('recipe repo error:', rr, e.message); }
   }
-  // Separate defaults-* from regular packages.
-  // For defaults-* apply first-provider-wins deduplication: the provider list
-  // is already in priority order (State.activeProviders), so the first entry
-  // for any given name is authoritative.
+  // Apply first-provider-wins deduplication for ALL packages.
+  // Providers were iterated in priority order (State.activeProviders order),
+  // so the first occurrence of any given name is authoritative.
+  // defaults-* are separated to sort to the top of the list.
+  const seen         = new Set();
   const defaultsPkgs = [];
-  const defaultsSeen = new Set();
   const regularPkgs  = [];
   for (const p of all) {
-    if (p.name.startsWith('defaults-')) {
-      if (!defaultsSeen.has(p.name)) {
-        defaultsSeen.add(p.name);
-        defaultsPkgs.push(p);
-      }
-    } else {
-      regularPkgs.push(p);
-    }
+    if (seen.has(p.name)) continue;
+    seen.add(p.name);
+    if (p.name.startsWith('defaults-')) defaultsPkgs.push(p);
+    else                                regularPkgs.push(p);
   }
   defaultsPkgs.sort((a, b) => a.name.localeCompare(b.name));
   regularPkgs.sort((a, b) => a.name.localeCompare(b.name));
@@ -2090,28 +2110,21 @@ function parseRecipe(text, path, src = {}) {
   };
 }
 
-// Build one <tr> for a package.  Used by filterPackages() for all three sections.
+// Build one <tr> for a package.  Used by filterPackages() for all sections.
 function pkgRow(p) {
   const isPinned  = State.pinnedPackages.has(p.name);
   const isDefault = p.name.startsWith('defaults-');
-  const showTags  = isPinned || isDefault;
 
   const pinBtn = `<button class="pin-btn${isPinned ? ' pinned' : ''}"
       onclick="event.stopPropagation();togglePin('${esc(p.name)}')"
       title="${isPinned ? 'Unpin' : 'Pin'} package">${isPinned ? '📌' : '📍'}</button>`;
 
-  const tagsBtn = showTags
-    ? `<button class="btn btn-outline btn-sm" id="tagbtn-${esc(p.name)}"
-         style="margin-right:4px;"
-         onclick="toggleTagRow('${esc(p.name)}',this)">🏷 Tags</button>`
-    : '';
-
-  const selTag = State._selectedTag[p.name] || null;
-  const verHtml = selTag
-    ? `<span class="pkg-version" style="color:var(--c-info);" title="Selected tag">${esc(selTag)}</span>`
-    : `<span class="pkg-version">${esc(p.version)}</span>`;
-
-  const buildVer = selTag || p.version;
+  // defaults-* packages are build-time configuration — they cannot be built or
+  // deployed independently, so they have no Build & Publish button.
+  const actionCell = isDefault
+    ? `<span class="text-muted" style="font-size:11px;">config only</span>`
+    : `<button class="btn btn-primary btn-sm"
+         onclick="showBuildModal('${esc(p.name)}','${esc(p.version)}')">Build &amp; Publish</button>`;
 
   return `<tr class="pkg-row" id="pkg-row-${esc(p.name)}">
     <td style="white-space:nowrap;">
@@ -2120,17 +2133,14 @@ function pkgRow(p) {
         style="font-family:var(--font-mono);font-size:12px;font-weight:600;
                color:var(--c-info);text-decoration:none;">${esc(p.name)}</a>
     </td>
-    <td>${verHtml}</td>
+    <td><span class="pkg-version">${esc(p.version)}</span></td>
     <td>${sourceTag(p._source)}</td>
     <td><span class="pkg-desc" title="${esc(p.description)}">${esc(p.description)}</span></td>
     <td>${p.patches.length
       ? `<span class="badge badge-success">${p.patches.length} patch${p.patches.length>1?'es':''}</span>`
       : '<span class="text-muted">—</span>'}</td>
     <td>${cvmfsStatusBadge(p.cvmfsStatus)}</td>
-    <td style="white-space:nowrap;">
-      ${tagsBtn}<button class="btn btn-primary btn-sm"
-        onclick="showBuildModal('${esc(p.name)}','${esc(buildVer)}')">Build &amp; Publish</button>
-    </td>
+    <td style="white-space:nowrap;">${actionCell}</td>
   </tr>`;
 }
 
@@ -2165,14 +2175,41 @@ function filterPackages() {
   const tbody  = el('pkg-tbody');
   const rows   = [];
 
-  if (showDefaults.length) {
-    rows.push(`<tr class="pkg-section-hdr"><td colspan="7">⚙ Defaults</td></tr>`);
-    rows.push(...showDefaults.map(pkgRow));
+  // ── Defaults section ─────────────────────────────────────────────────────
+  // Only pinned defaults are shown by default; "Show all N defaults" expands.
+  if (defaults.length) {
+    const pinnedDefs   = defaults.filter(p => State.pinnedPackages.has(p.name));
+    const allFiltered  = searching ? defaults.filter(matches) : defaults;
+    const showDefs     = State._showAllDefaults
+      ? allFiltered
+      : (searching ? pinnedDefs.filter(matches) : pinnedDefs);
+
+    const hiddenCount  = allFiltered.length - showDefs.length;
+    const toggleLabel  = State._showAllDefaults
+      ? 'Show pinned only'
+      : `Show all ${allFiltered.length}`;
+    const toggleBtn = `<button class="btn btn-outline btn-sm"
+        style="float:right;font-size:10px;padding:2px 7px;margin-top:-1px;"
+        onclick="toggleShowAllDefaults()">⚙ ${esc(toggleLabel)}</button>`;
+
+    rows.push(`<tr class="pkg-section-hdr"><td colspan="7">⚙ Defaults ${toggleBtn}</td></tr>`);
+    rows.push(...showDefs.map(pkgRow));
+    if (!State._showAllDefaults && hiddenCount > 0) {
+      rows.push(`<tr><td colspan="7" style="text-align:center;padding:6px;
+          font-size:12px;color:var(--c-muted);background:#fafbfc;">
+        ${hiddenCount} more defaults hidden —
+        <a href="#" onclick="toggleShowAllDefaults();return false;">show all</a>
+      </td></tr>`);
+    }
   }
+
+  // ── Pinned regular packages ───────────────────────────────────────────────
   if (showPinned.length) {
     rows.push(`<tr class="pkg-section-hdr"><td colspan="7">📌 Pinned packages</td></tr>`);
     rows.push(...showPinned.map(pkgRow));
   }
+
+  // ── All packages (search only) ────────────────────────────────────────────
   if (showRest.length) {
     rows.push(`<tr class="pkg-section-hdr"><td colspan="7">All packages</td></tr>`);
     rows.push(...showRest.map(pkgRow));
@@ -2186,16 +2223,6 @@ function filterPackages() {
     return;
   }
   tbody.innerHTML = rows.join('');
-
-  // Re-insert any open tag rows (their DOM was wiped by the innerHTML update).
-  for (const name of State._expandedTags) {
-    const cached = State._tagCache[name];
-    if (cached) {
-      insertTagRow(name, cached);
-      const btn = document.getElementById('tagbtn-' + name);
-      if (btn) btn.classList.add('active');
-    }
-  }
 }
 
 // ── Pin / unpin ────────────────────────────────────────────────────────────
@@ -2207,92 +2234,132 @@ function togglePin(name) {
   filterPackages();
 }
 
-// ── Tag picker ─────────────────────────────────────────────────────────────
-// Toggle the inline tag-row for a pinned/defaults package.
-async function toggleTagRow(pkgName, btn) {
-  const existing = document.getElementById('tag-row-' + pkgName);
-  if (existing) {
-    existing.remove();
-    State._expandedTags.delete(pkgName);
-    btn.classList.remove('active');
+// ── Show-all-defaults toggle ───────────────────────────────────────────────
+function toggleShowAllDefaults() {
+  State._showAllDefaults = !State._showAllDefaults;
+  filterPackages();
+}
+
+// ── Repository Versions panel ──────────────────────────────────────────────
+// Shows active providers with their current version (tag/branch) and allows
+// picking a different tag.  Packages are re-loaded on version change.
+
+function toggleRepoVersions() {
+  const body  = el('repo-versions-body');
+  const chev  = el('repo-versions-chevron');
+  const open  = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  chev.textContent   = open ? '▶' : '▼';
+  if (!open) renderRepoVersions();
+}
+
+// Re-render the provider version list (called on open and after version change).
+function renderRepoVersions() {
+  const list = el('repo-versions-list');
+  if (!list) return;
+  const ap = State.activeProviders;
+  if (!ap.length) {
+    list.innerHTML = '<span class="text-muted">No repositories selected. Add providers in Settings.</span>';
+    updateRepoVersionsSummary();
     return;
   }
-  btn.classList.add('active');
-  const origLabel = btn.textContent;
-  btn.textContent = '⏳';
-  State._expandedTags.add(pkgName);
-  try {
-    if (!State._tagCache[pkgName]) {
-      State._tagCache[pkgName] = await fetchPackageTags(pkgName);
+  list.innerHTML = ap.map(rr => {
+    const owner  = rr.owner || State.owner;
+    const repo   = rr.repo;
+    const key    = `${owner}/${repo}`;
+    const ver    = State.providerVersions[key] || rr.branch || 'main';
+    const label  = rr.name || `${owner}/${repo}`;
+    const safeKey = esc(key);
+    return `<div id="rvrow-${safeKey.replace(/\//g,'_')}"
+        style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:8px;
+               padding:8px 0;border-bottom:1px solid var(--c-border);">
+      <span style="font-weight:600;font-family:var(--font-mono);
+                   font-size:12px;min-width:160px;padding-top:3px;">${esc(label)}</span>
+      <span class="tag" id="rv-ver-${safeKey.replace(/\//g,'_')}"
+            style="background:#eaf5ff;color:#0366d6;">${esc(ver)}</span>
+      <button class="btn btn-outline btn-sm" style="font-size:11px;"
+          onclick="pickProviderVersion('${safeKey}',this)">🏷 Pick version</button>
+      <div id="rv-tags-${safeKey.replace(/\//g,'_')}"
+           style="display:none;flex-basis:100%;padding:6px 0 2px 168px;
+                  flex-wrap:wrap;gap:4px 6px;"></div>
+    </div>`;
+  }).join('');
+  updateRepoVersionsSummary();
+}
+
+function updateRepoVersionsSummary() {
+  const sumEl = el('repo-versions-summary');
+  if (!sumEl) return;
+  const custom = Object.keys(State.providerVersions).filter(k => State.providerVersions[k]);
+  sumEl.textContent = custom.length
+    ? `${custom.length} repo${custom.length>1?'s':''} on custom version`
+    : 'all on default branch';
+}
+
+// Toggle the inline tag list for a provider row.
+async function pickProviderVersion(key, btn) {
+  const safeKey  = key.replace(/\//g, '_');
+  const tagsDiv  = el('rv-tags-' + safeKey);
+  if (!tagsDiv) return;
+
+  // Close if already open.
+  if (tagsDiv.style.display !== 'none') {
+    tagsDiv.style.display = 'none';
+    if (btn) btn.classList.remove('active');
+    return;
+  }
+
+  if (btn) { btn.classList.add('active'); btn.textContent = '⏳'; }
+
+  // Fetch & cache tags.
+  if (!State._providerTagCache[key]) {
+    const [owner, repo] = key.split('/');
+    try {
+      const data = await ghGet(`/repos/${owner}/${repo}/tags?per_page=100`);
+      State._providerTagCache[key] = (Array.isArray(data) ? data : []).map(t => t.name);
+    } catch {
+      State._providerTagCache[key] = [];
     }
-    insertTagRow(pkgName, State._tagCache[pkgName]);
-  } catch(e) {
-    State._expandedTags.delete(pkgName);
-    btn.classList.remove('active');
   }
-  btn.textContent = origLabel;
+
+  const tags    = State._providerTagCache[key];
+  const current = State.providerVersions[key] || '';
+
+  // Build chip list: 'main' always first, then tags.
+  const options = ['main', ...tags.filter(t => t !== 'main')];
+  tagsDiv.innerHTML = options.map(t =>
+    `<span class="tag-chip${current === t || (!current && t==='main') ? ' selected' : ''}"
+        onclick="setProviderVersion('${esc(key)}','${esc(t)}')">${esc(t)}</span>`
+  ).join('') || '<span class="text-muted" style="font-size:12px;">No tags found — using default branch.</span>';
+
+  tagsDiv.style.display = 'flex';
+  if (btn) { btn.classList.add('active'); btn.textContent = '🏷 Pick version'; }
 }
 
-// Fetch tags from the package's upstream source repository.
-// The source: YAML field typically contains a GitHub URL; if absent we return [].
-async function fetchPackageTags(pkgName) {
-  const pkg = State.packages.find(p => p.name === pkgName);
-  if (!pkg) return [];
-  const sourceUrl = pkg.fields.source || '';
-  const m = sourceUrl.match(/github\.com\/([^/]+)\/([^/#? ]+)/);
-  if (!m) return [];
-  const [, owner, repo] = m;
-  try {
-    const data = await ghGet(`/repos/${owner}/${repo}/tags?per_page=50`);
-    return (Array.isArray(data) ? data : []).map(t => ({ name: t.name, sha: (t.commit || {}).sha || '' }));
-  } catch { return []; }
-}
+// Apply a version for a provider and reload packages.
+function setProviderVersion(key, ver) {
+  // 'main' clears back to default.
+  if (ver === 'main') delete State.providerVersions[key];
+  else                State.providerVersions[key] = ver;
 
-// Insert the expandable tag-row immediately after pkg-row-<pkgName>.
-function insertTagRow(pkgName, tags) {
-  const anchor = document.getElementById('pkg-row-' + pkgName);
-  if (!anchor) return;
-  // Remove a stale row first if it exists.
-  const old = document.getElementById('tag-row-' + pkgName);
-  if (old) old.remove();
+  // Update the version badge.
+  const safeKey = key.replace(/\//g, '_');
+  const badge   = el('rv-ver-' + safeKey);
+  if (badge) badge.textContent = ver;
 
-  const selTag = State._selectedTag[pkgName] || null;
-  const chips  = tags.length
-    ? tags.map(t => `<span class="tag-chip${selTag === t.name ? ' selected' : ''}"
-          onclick="selectTag('${esc(pkgName)}','${esc(t.name)}')">${esc(t.name)}</span>`).join('')
-    : '<span class="text-muted" style="font-size:12px;">No tags found in the source repository.</span>';
-
-  const clearBtn = selTag
-    ? `<button class="btn btn-outline btn-sm"
-         style="margin-left:8px;font-size:10px;padding:1px 6px;"
-         onclick="selectTag('${esc(pkgName)}',null)">✕ clear</button>`
-    : '';
-
-  const tr = document.createElement('tr');
-  tr.id        = 'tag-row-' + pkgName;
-  tr.className = 'tag-row';
-  tr.innerHTML = `<td colspan="7"
-      style="padding:8px 16px 12px 32px;background:#f8fafc;border-bottom:1px solid var(--c-border);">
-    <div style="font-size:11px;font-weight:600;color:var(--c-muted);text-transform:uppercase;
-                letter-spacing:.5px;margin-bottom:6px;">Source tags — click to select version</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px 6px;">${chips}</div>
-    ${selTag ? `<div style="margin-top:6px;font-size:12px;color:var(--c-info);">
-      ✔ Using tag <strong>${esc(selTag)}</strong>${clearBtn}</div>` : ''}
-  </td>`;
-  anchor.insertAdjacentElement('afterend', tr);
-}
-
-// Record the chosen tag (or clear it) and refresh the affected row.
-function selectTag(pkgName, tagName) {
-  if (tagName) State._selectedTag[pkgName] = tagName;
-  else         delete State._selectedTag[pkgName];
-  // Re-render the package row so the version cell and build-button version update.
-  filterPackages();
-  // Re-open the tag row (filterPackages rebuilt the DOM).
-  if (State._expandedTags.has(pkgName)) {
-    const cached = State._tagCache[pkgName];
-    if (cached) insertTagRow(pkgName, cached);
+  // Re-chip the tag list to show new selection.
+  const tagsDiv = el('rv-tags-' + safeKey);
+  if (tagsDiv && tagsDiv.innerHTML) {
+    tagsDiv.querySelectorAll('.tag-chip').forEach(chip => {
+      chip.classList.toggle('selected', chip.textContent === ver || (!State.providerVersions[key] && chip.textContent === 'main'));
+    });
   }
+
+  updateRepoVersionsSummary();
+
+  // Reload packages from the newly selected version.
+  State._packagesLoaded = false;
+  loadPackages();
 }
 
 // ── Defaults toggle (build modal) ──────────────────────────────────────────
